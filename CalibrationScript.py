@@ -66,51 +66,62 @@ def calibration_comparison(NavSolnFname, RTKfname):
     ##################################################################################
     binCount = 1000
     # plot each over eachother
+    # plt.figure(figsize=(12, 8))
+    # ax21 = plt.subplot(321)
+    # enc_lon = ax21.hist(df_enc['absolute_position_0'], bins=binCount, label='Nav Soln')
+    # enc_lon_position, enc_lon_counts = find_start_end(enc_lon[0], enc_lon[1])
+    # ax21.plot(enc_lon_position, enc_lon_counts, 'rx')
+    # rtk_lon = ax21.hist(df_rtk['longitude'], bins=binCount, label='RTK')
+    # rtk_lon_position, rtk_lon_counts = find_start_end(rtk_lon[0], rtk_lon[1])
+    # ax21.plot(rtk_lon_position, rtk_lon_counts, 'rx')
+    # ax21.set_title('longitude counts')
+    # ax21.legend()
+    # ax21.semilogy()
+    #
+    # ax22 = plt.subplot(322)
+    # enc_lat = ax22.hist(df_enc['absolute_position_1'], bins=binCount, label='Nav Soln')
+    # enc_lat_position, enc_lat_counts = find_start_end(enc_lat[0], enc_lat[1])
+    # ax22.plot(enc_lat_position, enc_lat_counts, 'rx')
+    # rtk_lat = ax22.hist(df_rtk['latitude'], bins=binCount, label='RTK')
+    # rtk_lat_position, rtk_lat_counts = find_start_end(rtk_lat[0], rtk_lat[1])
+    # ax22.plot(rtk_lat_position, rtk_lat_counts, 'rx')
+    # ax22.set_title('latitude counts')
+    # ax22.legend()
+    # ax22.semilogy()
+    #
+    #
+    #
+    #
+    #
+    # ax11.set_title('"less" counts (could be start or finish)')
+    # ax11.plot(enc_lon_position[0], enc_lat_position[0], 'r.', label='Nav Soln')
+    # ax11.plot(rtk_lon_position[0], rtk_lat_position[0], 'b.', label='RTK')
+    # ax11.legend(loc="lower left")
+    ######################################################################################################
     plt.figure(figsize=(12, 8))
-    ax21 = plt.subplot(321)
+    ax21 = plt.subplot2grid((8, 8), (4, 4), colspan=4, rowspan=4)
     enc_lon = ax21.hist(df_enc['absolute_position_0'], bins=binCount, label='Nav Soln')
     enc_lon_position, enc_lon_counts = find_start_end(enc_lon[0], enc_lon[1])
-    ax21.plot(enc_lon_position, enc_lon_counts, 'rx')
+    ax21.plot(enc_lon_position, enc_lon_counts, 'rd')
     rtk_lon = ax21.hist(df_rtk['longitude'], bins=binCount, label='RTK')
     rtk_lon_position, rtk_lon_counts = find_start_end(rtk_lon[0], rtk_lon[1])
-    ax21.plot(rtk_lon_position, rtk_lon_counts, 'rx')
+    ax21.plot(rtk_lon_position, rtk_lon_counts, 'kx')
     ax21.set_title('longitude counts')
     ax21.legend()
     ax21.semilogy()
 
-    ax22 = plt.subplot(322)
+    ax22 = plt.subplot2grid((8, 8), (0, 4), colspan=4, rowspan=4)
     enc_lat = ax22.hist(df_enc['absolute_position_1'], bins=binCount, label='Nav Soln')
     enc_lat_position, enc_lat_counts = find_start_end(enc_lat[0], enc_lat[1])
-    ax22.plot(enc_lat_position, enc_lat_counts, 'rx')
+    ax22.plot(enc_lat_position, enc_lat_counts, 'rd')
     rtk_lat = ax22.hist(df_rtk['latitude'], bins=binCount, label='RTK')
     rtk_lat_position, rtk_lat_counts = find_start_end(rtk_lat[0], rtk_lat[1])
-    ax22.plot(rtk_lat_position, rtk_lat_counts, 'rx')
+    ax22.plot(rtk_lat_position, rtk_lat_counts, 'kx')
     ax22.set_title('latitude counts')
     ax22.legend()
     ax22.semilogy()
 
-    ax11 = plt.subplot(323)
-    ax11.set_title('"less" counts (could be start or finish)')
-    ax11.plot(enc_lon_position[0], enc_lat_position[0], 'r.', label='Nav Soln')
-    ax11.plot(rtk_lon_position[0], rtk_lat_position[0], 'b.', label='RTK')
-    distStart = get_distance_between_pts(pos1=(rtk_lon_position[0], rtk_lat_position[0]),
-                                         pos2=(enc_lon_position[0], enc_lat_position[0]))
-
-    ax11.text((enc_lon_position[0] + rtk_lon_position[0]) / 2, (enc_lat_position[0] + rtk_lat_position[0]) / 2,
-              "separation\n{:.3f}".format(distStart))
-    ax11.legend(loc="lower left")
-
-    ax12 = plt.subplot(324)
-    ax12.set_title('"more" counts (could be start or finish)')
-    ax12.plot(enc_lon_position[1], enc_lat_position[1], 'r.', label='Nav Soln')
-    ax12.plot(rtk_lon_position[1], rtk_lat_position[1], 'b.', label='RTK')
-    distEnd = get_distance_between_pts(pos1=(rtk_lon_position[1], rtk_lat_position[1]),
-                                       pos2=(enc_lon_position[1], enc_lat_position[1]))
-    ax12.text((enc_lon_position[1] + rtk_lon_position[1]) / 2, (enc_lat_position[1] + rtk_lat_position[1]) / 2,
-              "separation\n{:.3f}".format(distEnd))
-    ax12.legend()
-
-    ax33 = plt.subplot(313)
+    ax33 = plt.subplot2grid((8,8), (0,0), colspan=4, rowspan=8)
     ax33.plot(df_enc['absolute_position_0'], df_enc['absolute_position_1'], '.', label='Nav Soln')
     ax33.plot(df_rtk['longitude'], df_rtk['latitude'], '.', label='RTK')
     ax33.plot(enc_lon_position[0], enc_lat_position[0], 'rd', ms=10, label='Nav Soln')
@@ -118,9 +129,24 @@ def calibration_comparison(NavSolnFname, RTKfname):
     ax33.plot(rtk_lon_position[0], rtk_lat_position[0], 'kx', ms=20, label='RTK')
     ax33.plot(rtk_lon_position[1], rtk_lat_position[1], 'kx', ms=20)
     ax33.legend()
+    ax33.set_aspect('equal', 'box')
+
+    distStart = get_distance_between_pts(pos1=(rtk_lon_position[0], rtk_lat_position[0]),
+                                         pos2=(enc_lon_position[0], enc_lat_position[0]))
+    distEnd = get_distance_between_pts(pos1=(rtk_lon_position[1], rtk_lat_position[1]),
+                                       pos2=(enc_lon_position[1], enc_lat_position[1]))
     totalDistance = get_distance_between_pts(pos1=(rtk_lon_position[0], rtk_lat_position[0]),
                                              pos2=(rtk_lon_position[1], rtk_lat_position[1]))
-    ax33.set_title('Total Distance Traveled = {:.1f} m'.format(totalDistance))
+    TotalDistanceNav = get_distance_between_pts(pos1=(enc_lon_position[0], enc_lat_position[0]),
+                                                pos2=(enc_lon_position[1], enc_lat_position[1]))
+
+    ax33.set_title('Total RTK Distance Traveled = {:.1f}m\n& NAV Distance Traveled = {:.1f}m\n'.format(totalDistance,
+                                                                                                     TotalDistanceNav))
+    ax33.text((enc_lon_position[0] + rtk_lon_position[0]) / 2, (enc_lat_position[0] + rtk_lat_position[0]) / 2,
+              "Start sep\n{:.3f}".format(distStart))
+    ax33.text((enc_lon_position[1] + rtk_lon_position[1]) / 2, (enc_lat_position[1] + rtk_lat_position[1]) / 2,
+              "Start sep\n{:.3f}".format(distEnd))
+
     plt.tight_layout()
     outFname = '.'.join(NavSolnFname.split('.')[:2]) + "_CalibrationResults.png"
     plt.savefig(outFname)
