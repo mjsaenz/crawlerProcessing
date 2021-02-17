@@ -56,20 +56,26 @@ def apply_filter_nav(nav_df,T=40,fs=0.04):
     normal_cutoff = cutoff / nyq
     b, a = signal.butter(2, normal_cutoff, btype='low', analog=False)
     nav_filtered_depth = signal.lfilter(b, a, nav_df.depth)
-    nav_df.depth = nav_filtered_depth
+    nav_filtered_depth2 = signal.lfilter(b, a, nav_filtered_depth[::-1])
+    nav_df.depth = (nav_filtered_depth+nav_filtered_depth2[::-1])/2
     return nav_df
 
-def adjust_WL(nav_df,tide):
+def adjust_WL(depth,unix,tide):
     '''
     Adjust depths in nav_df to local with averaged WL across the individual run
     tide = dataframe of NOAA tide (water level) from entire day, ideally sampled at 1 hr or less
     '''
-    start_t= nav_df.UNIX_timestamp[0]
-    end_t = nav_df.UNIX_timestamp[len(nav_df.UNIX_timestamp)-1] # google why you cant index at -1
+    unix.index=np.arange(len(unix))
+    start_t= unix[0]
+    end_t = unix[len(unix)-1] # google why you cant index at -1
     tide_run = tide.WL[(tide.unix <= end_t) & (tide.unix >= start_t)]
-    avg_WL = sum(tide_run)/len(tide_run)
-    nav_df['depth_adj'] = nav_df.depth - avg_WL
-    return nav_df
+    if len(tide_run) == 0:
+        lst = np.asarray(tide.unix)
+        idx = (np.abs(lst - start_t)).argmin()
+        avg_WL = tide.WL[idx]
+    else: avg_WL = sum(tide_run)/len(tide_run)
+    depth = depth + avg_WL
+    return depth
 
 def load_nav_rtk(f1,f2,tide):
     '''
@@ -83,7 +89,7 @@ def load_nav_rtk(f1,f2,tide):
     nav_df.depth = nav_df.depth*(-1)
 
     nav_df = apply_filter_nav(nav_df)
-    nav_df = adjust_WL(nav_df,tide)
+    #nav_df = adjust_WL(nav_df,tide)
     
     return rtk_df,nav_df
 
