@@ -30,3 +30,11 @@ def correctEllipsoid(fname, geoidFile='g2012bu8.bin', plot=False):
         data.plot.scatter('longitude', 'latitude', c='elevation_NAVD88_m', cmap='ocean')
     
     return data
+
+def cleanDF(data):
+    """cleans data frame by removing columns with all zeros and converts time"""
+    for key in data.keys():
+        if (data[key] == 0).all():
+            data.drop(columns=key, inplace=True)
+    data['time'] = pd.to_datetime(data['UNIX_timestamp'], unit='s')
+    return data
