@@ -5,10 +5,16 @@ import numpy as np
 
 #######################################################################################
 # load files
-f2 = "/home/c2i/gss_logs/20200827_204653.915_telemetry.gssbin_OPENINS_NAV_SOLUTION.csv"
-f1 = "/home/c2i/gss_logs/20200827_204653.915_telemetry.gssbin_GPS_STAT_2.csv"
-f3 = "/home/c2i/gss_logs/20200827_204653.915_telemetry.gssbin_C2I_SPC_PCOMMS_STAT.csv"
-f4 = "/home/c2i/gss_logs/20200827_204653.915_telemetry.gssbin_OPENINS_IMU_STAT.csv"
+timeString = "20200903_193927.463"
+f1 = "/home/c2i/gss_logs/{}_telemetry.gssbin_GPS_STAT_2.csv".format(timeString)
+f2 = "/home/c2i/gss_logs/{}_telemetry.gssbin_OPENINS_NAV_SOLUTION.csv".format(timeString)
+f3 = "/home/c2i/gss_logs/{}_telemetry.gssbin_C2I_SPC_PCOMMS_STAT.csv".format(timeString)
+f4 = "/home/c2i/gss_logs/{}_telemetry.gssbin_OPENINS_IMU_STAT.csv".format(timeString)
+## Crow island data
+f1 = "/home/c2i/repos/dataProcess/CrowIslandLongRuns/20200812_153930.704_telemetry.gssbin_GPS_STAT_2.csv"
+f2 = "/home/c2i/repos/dataProcess/CrowIslandLongRuns/20200812_153930.704_telemetry.gssbin_OPENINS_NAV_SOLUTION.csv"
+f3 = "/home/c2i/repos/dataProcess/CrowIslandLongRuns/20200812_153930.704_telemetry.gssbin_C2I_SPC_PCOMMS_STAT.csv"
+f4 = ""
 #######################################################################################
 # plot scatter colored by Z elevations
 rtk_df = pd.read_csv(f1, header=4)
@@ -41,11 +47,15 @@ imu_df = pd.read_csv(f4, header=4)
 #######################################################################################
 # break up variables
 tDz = incl_df.UNIX_timestamp         # inclenometer timestamps
-incl = incl_df.SPC_INCLO_Y           # inclenometer values
+incl = incl_df.SPC
+
+
+_INCLO_X           # inclenometer values
 tDz = tDz[~np.isnan(incl)]           # remove inclenometer values that are nans
 incl = incl[~np.isnan(incl)]         # remove inclenometer values that are nans
 tRawSpeed = nav_df.UNIX_timestamp    # nav time stamp
 rawSpeed = nav_df.speed_over_ground  # nav speed
+inclOffset = -1.8340
 # time average speed to interval of inclenometer
 avgspd = []
 for ii, dz in enumerate(incl):
@@ -63,23 +73,24 @@ elevation, rise, dt = [0], [0], [0]
 for ii, tt in enumerate(tDz):
     if ii < tDz.size-1:
         dt.append(tDz.values[ii+1] - tDz.values[ii])
-        rise.append((incl.values[ii]*.001)*avgspd[ii]/dt[-1])
+        rise.append((np.sin(np.deg2rad(incl.values[ii]-inclOffset)))*avgspd[ii]*dt[-1])
         elevation.append(elevation[-1]+rise[-1])
 #######################################################################################
 plt.figure()
-plt.plot(tDz.values, rise, '.', label='rise/timestep [m]')
-plt.plot(tDz.values, elevation,'.', label='calculated elevation [m]')
-plt.plot(tDz.values[:-1], avgspd, '.', label='vehicle speed (from Nav Soln)[m/s]')
-plt.plot(tDz.values, incl.values/2, '.', label='Raw Incl Vals/2 [rise/run]')
+# plt.plot(tDz.values, np.array(rise)*-1, '.', ms = 2, label='rise/timestep [m]')
+plt.plot(tDz.values, np.array(elevation)+rtk_df['gga_altitude_m'][0], '.', label='calculated elevation [m]\noffset = {}'.format(inclOffset))
+# plt.plot(tDz.values, avgspd, '.', label='vehicle speed (from Nav Soln)[m/s]')
+# plt.plot(tDz.values, incl.values, '--.', ms=2, label='Raw Incl Vals [rise/run]')
 # plt.plot(tDz.values, dt, '.', label='dt')
 plt.plot(rtk_df['UNIX_timestamp'], rtk_df['gga_altitude_m'], '.', label='gga_altitude [m]')
 plt.legend()
+plt.title('Comparison of calculations')
 
-plt.figure()
-plt.scatter(rtk_df.longitude, rtk_df.latitude, c=rtk_df.gga_altitude_m, vmin=-0.1, vmax=0.5);
-cbar = plt.colorbar();
-cbar.set_label('RTK')
-plt.scatter(nav_df.absolute_position_0, nav_df.absolute_position_1, c=nav_df.absolute_position_2, vmin=-0.1, vmax=0.5);
-cbar = plt.colorbar();
-cbar.set_label('Nav Soln')
-
+# plt.figure()
+# plt.scatter(rtk_df.longitude, rtk_df.latitude, c=rtk_df.gga_altitude_m, vmin=-0.1, vmax=0.5);
+# cbar = plt.colorbar();
+# cbar.set_label('RTK')
+# plt.scatter(nav_df.absolute_position_0, nav_df.absolute_position_1, c=nav_df.absolute_position_2, vmin=-0.1, vmax=0.5);
+# cbar = plt.colorbar();
+# cbar.set_label('Nav Soln')
+#

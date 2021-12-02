@@ -65,38 +65,6 @@ def calibration_comparison(NavSolnFname, RTKfname):
 
     ##################################################################################
     binCount = 1000
-    # plot each over eachother
-    # plt.figure(figsize=(12, 8))
-    # ax21 = plt.subplot(321)
-    # enc_lon = ax21.hist(df_enc['absolute_position_0'], bins=binCount, label='Nav Soln')
-    # enc_lon_position, enc_lon_counts = find_start_end(enc_lon[0], enc_lon[1])
-    # ax21.plot(enc_lon_position, enc_lon_counts, 'rx')
-    # rtk_lon = ax21.hist(df_rtk['longitude'], bins=binCount, label='RTK')
-    # rtk_lon_position, rtk_lon_counts = find_start_end(rtk_lon[0], rtk_lon[1])
-    # ax21.plot(rtk_lon_position, rtk_lon_counts, 'rx')
-    # ax21.set_title('longitude counts')
-    # ax21.legend()
-    # ax21.semilogy()
-    #
-    # ax22 = plt.subplot(322)
-    # enc_lat = ax22.hist(df_enc['absolute_position_1'], bins=binCount, label='Nav Soln')
-    # enc_lat_position, enc_lat_counts = find_start_end(enc_lat[0], enc_lat[1])
-    # ax22.plot(enc_lat_position, enc_lat_counts, 'rx')
-    # rtk_lat = ax22.hist(df_rtk['latitude'], bins=binCount, label='RTK')
-    # rtk_lat_position, rtk_lat_counts = find_start_end(rtk_lat[0], rtk_lat[1])
-    # ax22.plot(rtk_lat_position, rtk_lat_counts, 'rx')
-    # ax22.set_title('latitude counts')
-    # ax22.legend()
-    # ax22.semilogy()
-    #
-    #
-    #
-    #
-    #
-    # ax11.set_title('"less" counts (could be start or finish)')
-    # ax11.plot(enc_lon_position[0], enc_lat_position[0], 'r.', label='Nav Soln')
-    # ax11.plot(rtk_lon_position[0], rtk_lat_position[0], 'b.', label='RTK')
-    # ax11.legend(loc="lower left")
     ######################################################################################################
     plt.figure(figsize=(12, 8))
     ax21 = plt.subplot2grid((8, 8), (4, 4), colspan=4, rowspan=4)
