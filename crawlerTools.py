@@ -22,10 +22,10 @@ def correctEllipsoid(fname, geoidFile='g2012bu8.bin', plot=False):
     """
     
     data = pd.read_csv(fname, header=4)
-    data['ellipsoid'] = data.gga_altitude_m - data.gga_height_geoid_m
+    data['ellipsoid'] = data.gga_altitude_m + data.gga_height_geoid_m
     instance = geoids.GeoidG2012B(geoidFile)
     geoidHeight = instance.height(data.latitude, data.longitude)
-    data['elevation_NAVD88_m'] = data.ellipsoid + geoidHeight
+    data['elevation_NAVD88_m'] = data.ellipsoid - geoidHeight
     if plot is True:
         data.plot.scatter('longitude', 'latitude', c='elevation_NAVD88_m', cmap='ocean')
     
