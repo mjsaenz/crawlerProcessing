@@ -20,6 +20,7 @@ GPSfname = "data/20211019/20211019_181020.816_telemetry.gssbin_GPS_STAT_2.csv"
 offset = 4.6482 + 0.0843 + 0.32 - 0.0254
 yMin = 956  # used for defining which data to "keep"
 yMax = 962  # then subset
+yRange = 10  # in meters distance in alongshore to consider points "valid" for comparion
 savePath = "plots/DUNEXcomparisons"
 ########################################################################
 # figure out start/end times gather background data
@@ -47,9 +48,12 @@ crawlerPlots.bathyEnvalopeComparison(GPSfname, data, bathy)
 
 
 ########### find subset to focus on ########3
-subSetLogic = f'(yFRF <= {yMax}) & (yFRF >={yMin})'
-subB = bathy.query()
-# sb.reduceDict(bathy, np.argwhere((bathy['profileNumber'] >= yMin) & (bathy['profileNumber'] <=Max)).squeeze(), exemptList=[])
-subC = data.query()
+for profile in np.unique(bathy.profileNumber):
+    subSetLogic = f'(yFRF <= {profile + yRange}) & (yFRF >={profile - yRange})'
 
-#####################################################
+    subB = bathy.query(subSetLogic)
+    subC = data.query(subSetLogic)
+
+    #####################################################
+    if not subC.empty:
+        profileComparison = crawlerPlots.singleProfileComparison(savePath, subB, subC)

@@ -1,5 +1,7 @@
 from matplotlib import pyplot as plt
 import os
+import numpy as np
+from testbedutils import sblib as sb
 
 def bathyEnvalopeComparison(fname, data, bathy):
     """makes an envelop for comparison of background data
@@ -78,21 +80,32 @@ def singleProfileComparison(savePath,subB, subC):
     xStart = max(subC['xFRF'].min(), subB['xFRF'].min())
     xStop = min(max(subC['xFRF']), max(subB['xFRF']))
     profileNumber = np.unique(subB['profileNumber']).squeeze()
-    saveFname = os.path.join(savePath, f'SingleProfileCompare_{profileNumber}.png')
-    date = subB['time'][0].date().strftime("%Y-%m-%d")
+    date = subB['time'].iloc[0].date().strftime("%Y-%m-%d")
+    saveFname = os.path.join(savePath, f'SingleProfileCompare_{date}_{profileNumber}.png')
     title = f"Comparison on {date} of profile number {profileNumber}"
-
+    ############3
+    dx =  0.6 #np.min(np.diff(subB['xFRF'].squeeze()).mean(), np.median(np.diff(subC['xFRF'])) )
+    newX = np.linspace(xStart, xStop, np.round((xStop-xStart)/dx).astype(int))
+    crawlInterp = np.interp(newX, subC.sort_values(by='xFRF')['xFRF'], subC.sort_values(by='xFRF')['elevation_NAVD88_m'])
+    surveyInterp = np.interp(newX, subB.sort_values(by='xFRF')['xFRF'], subB.sort_values(by='xFRF')['elevation'])
+    crawlInterpY = np.interp(newX, subC.sort_values(by='xFRF')['xFRF'], subC.sort_values(by='xFRF')['yFRF'])
+    surveyInterpY = np.interp(newX, subB.sort_values(by='xFRF')['xFRF'], subB.sort_values(by='xFRF')['yFRF'])
+    alongshoreResidual = crawlInterpY - surveyInterpY
+    # pitch
     #############
     plt.figure()
     plt.suptitle(title)
     ax1 = plt.subplot(211)
-    ax1.plot(subB['xFRF'], subB['elevation'], '.', label='survey')
-    ax1.plot(subC['xFRF'], subC['elevation_NAVD88_m'], '.', label='crawler')
+    ax1.plot(subB['xFRF'], subB['elevation'], '.', label='survey - raw')
+    ax1.plot(subC['xFRF'], subC['elevation_NAVD88_m'], '.', label='crawler - raw')
+    ax1.plot(newX, crawlInterp, '.', ms=2, label='crawler - interp')
+    ax1.plot(newX, surveyInterp, '.', ms=2, label='survey - interp ')
     ax1.legend()
     ax1.set_xlabel('xFRF [m]')
     ax1.set_ylabel('elevation [m]')
-    ax1.set_xlim([xStart, xStop])
-
+    ax1.set_xlim([xStart-20, xStop+20])
+    ax1.set_ylim([subC['elevation_NAVD88_m'].min()-0.5, subC['elevation_NAVD88_m'].max()+0.5])
+    
     ax2 = plt.subplot(223)
     ax2.plot(subB['xFRF'], subB['yFRF'], '.', label='survey')
     ax2.plot(subC['xFRF'], subC['yFRF'], '.', label='crawler')
@@ -101,16 +114,20 @@ def singleProfileComparison(savePath,subB, subC):
     ax2.set_ylabel('yFRF')
 
     ax3 = plt.subplot(224)
-    dx =  0.6 #np.min(np.diff(subB['xFRF'].squeeze()).mean(), np.median(np.diff(subC['xFRF'])) )
-    newX = np.linspace(xStart, xStop, np.round((xStop-xStart)/dx).astype(int))
-    crawlInterp = np.interp(newX, subC['xFRF'], subC['elevation_NAVD88_m'])
-    surveyInterp = np.interp(newX, subB['xFRF'].squeeze(), subB['elevation'].squeeze())
-    ax3.plot(crawlInterp, surveyInterp, '.')
+    
+    c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(alongshoreResidual), vmin=0, vmax=7, cmap='bone')
     ax3.plot([-3, 2], [-3, 2], 'k--')
     stats = sb.statsBryant(surveyInterp, crawlInterp)
     ax3.text(-2.75, 0.5, f"RMSE: {stats['RMSEdemeaned']:.2f}[m]\nbias:{stats['bias']:.2f}[m]")
     ax3.set_xlabel('elevation survey')
     ax3.set_ylabel('elevation crawler')
+    cbar = plt.colorbar(c)
+    cbar.set_label('alonshore residual')
+    ax3.set_ylim([subC['elevation_NAVD88_m'].min()-0.5, subC['elevation_NAVD88_m'].max()+0.5])
+    ax3.set_xlim([subC['elevation_NAVD88_m'].min()-0.5, subC['elevation_NAVD88_m'].max()+0.5])
+    
     plt.tight_layout(rect=[0.01, 0.01, 0.99, 0.95])
     plt.savefig(saveFname)
     plt.close()
+    
+    return crawlInterp, surveyInterp
