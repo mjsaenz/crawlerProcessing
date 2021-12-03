@@ -44,7 +44,7 @@ for fname in flist:
         # bathy = sb.reduceDict(bathy, idxBathy, exemptList = [])
         #
         
-        
+        crawlerPlots.bathyPlanViewComparison(fname, data, bathy, topo)
         crawlerPlots.bathyEnvalopeComparison(fname, data, bathy)
  
     else:

@@ -1,7 +1,7 @@
 from matplotlib import pyplot as plt
 import os
 
-from scratchForComparison import data, fname
+from workflow2OverplotAvailableData import data, fname
 
 
 def bathyEnvalopeComparison(fname, data, bathy):
