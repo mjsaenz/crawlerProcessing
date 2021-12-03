@@ -1,9 +1,6 @@
 from matplotlib import pyplot as plt
 import os
 
-from workflow2OverplotAvailableData import data, fname
-
-
 def bathyEnvalopeComparison(fname, data, bathy):
     """makes an envelop for comparison of background data
     
@@ -66,3 +63,54 @@ def bathyPlanViewComparison(fname, data, bathy, topo):
     cbar = plt.colorbar(cmap)
     fnameBase = os.path.basename(fname).split('.')[0]
     fname1 = os.path.join(os.path.dirname(fname), fnameBase+"_withLocalObs_XY.png")
+
+def singleProfileComparison(savePath,subB, subC):
+    """Makes a comparison of a single profile line
+    
+    Args:
+        savePath:
+        subB:
+        subC:
+
+    Returns:
+
+    """
+    xStart = max(subC['xFRF'].min(), subB['xFRF'].min())
+    xStop = min(max(subC['xFRF']), max(subB['xFRF']))
+    profileNumber = np.unique(subB['profileNumber']).squeeze()
+    saveFname = os.path.join(savePath, f'SingleProfileCompare_{profileNumber}.png')
+    date = subB['time'][0].date().strftime("%Y-%m-%d")
+    title = f"Comparison on {date} of profile number {profileNumber}"
+
+    #############
+    plt.figure()
+    plt.suptitle(title)
+    ax1 = plt.subplot(211)
+    ax1.plot(subB['xFRF'], subB['elevation'], '.', label='survey')
+    ax1.plot(subC['xFRF'], subC['elevation_NAVD88_m'], '.', label='crawler')
+    ax1.legend()
+    ax1.set_xlabel('xFRF [m]')
+    ax1.set_ylabel('elevation [m]')
+    ax1.set_xlim([xStart, xStop])
+
+    ax2 = plt.subplot(223)
+    ax2.plot(subB['xFRF'], subB['yFRF'], '.', label='survey')
+    ax2.plot(subC['xFRF'], subC['yFRF'], '.', label='crawler')
+    ax2.set_xlim([xStart-5, xStop+5])
+    ax2.set_xlabel('xFRF')
+    ax2.set_ylabel('yFRF')
+
+    ax3 = plt.subplot(224)
+    dx =  0.6 #np.min(np.diff(subB['xFRF'].squeeze()).mean(), np.median(np.diff(subC['xFRF'])) )
+    newX = np.linspace(xStart, xStop, np.round((xStop-xStart)/dx).astype(int))
+    crawlInterp = np.interp(newX, subC['xFRF'], subC['elevation_NAVD88_m'])
+    surveyInterp = np.interp(newX, subB['xFRF'].squeeze(), subB['elevation'].squeeze())
+    ax3.plot(crawlInterp, surveyInterp, '.')
+    ax3.plot([-3, 2], [-3, 2], 'k--')
+    stats = sb.statsBryant(surveyInterp, crawlInterp)
+    ax3.text(-2.75, 0.5, f"RMSE: {stats['RMSEdemeaned']:.2f}[m]\nbias:{stats['bias']:.2f}[m]")
+    ax3.set_xlabel('elevation survey')
+    ax3.set_ylabel('elevation crawler')
+    plt.tight_layout(rect=[0.01, 0.01, 0.99, 0.95])
+    plt.savefig(saveFname)
+    plt.close()

@@ -2,7 +2,6 @@
 import sys, os
 
 import crawlerPlots
-from crawlerPlots import cbar, fname1
 
 sys.path.append('/home/spike/repos')
 from testbedutils import geoprocess as gp
