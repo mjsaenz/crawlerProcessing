@@ -1,6 +1,54 @@
 import numpy as np
 import pandas as pd
 from pygeodesy import geoids
+import glob
+
+def loadAndMergeFiles(path2SingleFile, verbose=True):
+    """This function loads all Greensea file types.
+    
+    function will first go out to find similar csv's with the same time stamp.  then it will correct the GGA geoid
+    with NAD83 - geoid 2012B. then it will interpolate all of the files to the GPS time stamp (1HZ), then it will
+    compbine all of the data to the NAV Soln data frame
+    
+    Args:
+        path2SingleFile: a single file (full extension)
+
+    Returns:
+        single data frame with all csv's combined
+        
+    """
+    # first search the path for all files
+    flist = glob.glob(os.path.join(os.path.dirname(path2SingleFile), os.path.basename(path2SingleFile).split('.')[0] + "*.csv"))
+    # then load NAv solution file
+    GPSfname = flist.pop(np.argwhere(["GPS_STAT_2" in f for f in flist]).squeeze())
+    data = crawlerTools.loadCorrectEllipsoid(GPSfname, geoidFile='data/g2012bu8.bin', plot=False)
+    for fname in flist:
+        if verbose: print(f'loading {fname}')
+        tempdf = pd.read_csv(fname, header=4, error_bad_lines=False)
+        dataOut = interpDataFrames(data.UNIX_timestamp, tempdf, verbose=verbose)
+        data.merge(dataOut, how='left', on="UNIX_timestamp")
+    
+    return dataOut
+
+
+def interpDataFrames(timeStamp2Interp, df, verbose=False): #  = IMUdf , timeStamp2Interp = data['UNIX_timestamp']
+    out = pd.DataFrame()
+    for key in df.keys():
+        if key != 'UNIX_timestamp':
+            try:
+                out[key] = np.interp(timeStamp2Interp, df.UNIX_timestamp.astype(float), df[key])
+            except TypeError:  # typically strings that are all the same
+                if verbose: print(f'{key} not included')
+                continue
+                # if df[key].all(): #[0] == df[key]).all():
+                #     out[key] = df[key][:len(timeStamp2Interp)]
+            except ValueError:
+                if verbose: print(f'{key} not included')
+                continue
+            finally:
+                out['UNIX_timestamp'] = timeStamp2Interp
+    return out
+
 
 def rotateTranslateAntenna2Ground(data, verticalOffset, pitch=0, roll=0):
     """Rotates and translates the measured antenna elevations to the ground
