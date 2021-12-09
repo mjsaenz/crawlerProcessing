@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from pygeodesy import geoids
 import glob
+import os
 
 def loadAndMergeFiles(path2SingleFile, verbose=True):
     """This function loads all Greensea file types.
@@ -21,14 +22,20 @@ def loadAndMergeFiles(path2SingleFile, verbose=True):
     flist = glob.glob(os.path.join(os.path.dirname(path2SingleFile), os.path.basename(path2SingleFile).split('.')[0] + "*.csv"))
     # then load NAv solution file
     GPSfname = flist.pop(np.argwhere(["GPS_STAT_2" in f for f in flist]).squeeze())
-    data = crawlerTools.loadCorrectEllipsoid(GPSfname, geoidFile='data/g2012bu8.bin', plot=False)
+    data = loadCorrectEllipsoid(GPSfname, geoidFile='data/g2012bu8.bin', plot=False)
     for fname in flist:
         if verbose: print(f'loading {fname}')
         tempdf = pd.read_csv(fname, header=4, error_bad_lines=False)
+        if "GPS_STAT_1" in fname:
+            tempdf = tempdf.add_prefix("GPS1_")
+            tempdf['UNIX_timestamp'] = tempdf.pop("GPS1_UNIX_timestamp")
         dataOut = interpDataFrames(data.UNIX_timestamp, tempdf, verbose=verbose)
-        data.merge(dataOut, how='left', on="UNIX_timestamp")
+        data = data.merge(dataOut, how='left', on="UNIX_timestamp")
+        if 'gga_fix_quality' not in data.keys():
+            print(f"ERROR HERE: {fname}")
     
-    return dataOut
+    return data
+
 
 
 def interpDataFrames(timeStamp2Interp, df, verbose=False): #  = IMUdf , timeStamp2Interp = data['UNIX_timestamp']
@@ -103,15 +110,18 @@ def loadCorrectEllipsoid(fname, geoidFile='g2012bu8.bin', plot=False):
     return data
 
 def cleanDF(data, acceptableFix=4):
-    """cleans data frame by removing columns with all zeros and converts time
+    """cleans data frame by removing columns with all zeros and converts time, and duplicate frames
     
     """
-    
+    data = data.loc[:,~data.columns.duplicated()]  # remove duplicate columns
     for key in data.keys():
         if (data[key] == 0).all():
-            data.drop(columns=key, inplace=True)
+            data = data.drop(columns=key)
     data['time'] = pd.to_datetime(data['UNIX_timestamp'], unit='s')
-    data = data.query(f'gga_fix_quality >= {acceptableFix}')
+    try:
+        data = data.query(f'gga_fix_quality == {acceptableFix}')  # some files oddly have this key
+    except (pd.core.computation.ops.UndefinedVariableError):
+        data = data.query(f'gga_fix_quality_x == {acceptableFix}')  # others have this key
     print(f' FOR PAPER: cleaned acceptable RTK fix with {acceptableFix}')
     return data
 

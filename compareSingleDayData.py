@@ -29,16 +29,15 @@ savePath = "plots/DUNEXcomparisons"
 # figure out start/end times gather background data
 start = DT.datetime(2021, 11, 22)
 end = DT.datetime(2021, 11, 22)
-go = getDataFRF.getObs(start, end)
-topo = go.getLidarDEM()  # get topo data
-bathy = go.getBathyTransectFromNC(method=0) #get bathy data
-bathy = pd.DataFrame.from_dict(bathy)
+# go = getDataFRF.getObs(start, end)
+# topo = go.getLidarDEM()  # get topo data
+# bathy = go.getBathyTransectFromNC(method=0) #get bathy data
+# bathy = pd.DataFrame.from_dict(bathy)
 ###############################################
 ## first load file and correct elipsoid values
 print(f'working on {start}')
 data = crawlerTools.loadAndMergeFiles(GPSfname)
-# ldata = crawlerTools.loadCorrectEllipsoid(GPSfname,
-#                                                                                   geoidFile='data/g2012bu8.bin', plot=False)
+# ldata = crawlerTools.loadCorrectEllipsoid(GPSfname, geoidFile='data/g2012bu8.bin', plot=False)
 # NAVdf = pd.read_csv(NAVfname, header=4)
 # IMUdf =  pd.read_csv(IMUfname, header=4)oadCorrectEllipsoid(GPSfname, geoidFile='data/g2012bu8.bin', plot=False)
 # NAVdf = pd.read_csv(NAVfname, header=4)
@@ -58,11 +57,11 @@ def interpDataFrames(timeStamp2Interp, df): #  = IMUdf , timeStamp2Interp = data
                 out['UNIX_timestamp'] = timeStamp2Interp
     return out
 
-NAVdf = interpDataFrames(data.UNIX_timestamp, NAVdf)
-IMUdf = interpDataFrames(data.UNIX_timestamp, IMUdf)
+# NAVdf = interpDataFrames(data.UNIX_timestamp, NAVdf)
+# IMUdf = interpDataFrames(data.UNIX_timestamp, IMUdf)
 ## now merge data
-data = pd.merge(data, IMUdf, how='left', on="UNIX_timestamp")
-data = pd.merge(data, NAVdf, how='left', on="UNIX_timestamp")
+# data = pd.merge(data, IMUdf, how='left', on="UNIX_timestamp")
+# data = pd.merge(data, NAVdf, how='left', on="UNIX_timestamp")
 data = crawlerTools.cleanDF(data)
 
 # add FRF coords to data
