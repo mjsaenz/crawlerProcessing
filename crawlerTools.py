@@ -117,12 +117,11 @@ def cleanDF(data, acceptableFix=4):
     for key in data.keys():
         if (data[key] == 0).all():
             data = data.drop(columns=key)
+    
     data['time'] = pd.to_datetime(data['UNIX_timestamp'], unit='s')
-    try:
-        data = data.query(f'gga_fix_quality == {acceptableFix}')  # some files oddly have this key
-    except (pd.core.computation.ops.UndefinedVariableError):
-        data = data.query(f'gga_fix_quality_x == {acceptableFix}')  # others have this key
+    data = data.query(f'gga_fix_quality == {acceptableFix}')  # some files oddly have this key
     print(f' FOR PAPER: cleaned acceptable RTK fix with {acceptableFix}')
+    
     return data
 
 
