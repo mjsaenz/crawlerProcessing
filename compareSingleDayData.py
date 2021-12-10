@@ -36,7 +36,7 @@ bathy = pd.DataFrame.from_dict(bathy)
 ###############################################
 ## first load file and correct elipsoid values
 print(f'working on {start}')
-data = crawlerTools.loadAndMergeFiles(GPSfname)
+data = crawlerTools.loadAndMergeFiles(GPSfname, verbose=False)
 # ldata = crawlerTools.loadCorrectEllipsoid(GPSfname, geoidFile='data/g2012bu8.bin', plot=False)
 # NAVdf = pd.read_csv(NAVfname, header=4)
 # IMUdf =  pd.read_csv(IMUfname, header=4)oadCorrectEllipsoid(GPSfname, geoidFile='data/g2012bu8.bin', plot=False)
@@ -71,7 +71,9 @@ data['yFRF'] = coords['yFRF']
 data = crawlerTools.rotateTranslateAntenna2Ground(data, offset)
 print("don't forget to account for pitch/roll")
 crawlerPlots.bathyEnvalopeComparison(GPSfname, data, bathy)
-
+fname = os.path.join(os.path.dirname(GPSfname), ''.join(os.path.basename(GPSfname).split('.')[0])+
+                     "_withLocalObs_XY.png")
+crawlerPlots.bathyPlanViewComparison(fname, data, bathy, topo)
 
 ########### find subset to focus on ########3
 for profile in np.unique(bathy.profileNumber):

@@ -50,7 +50,7 @@ def bathyPlanViewComparison(fname, data, bathy, topo):
         plt.pcolormesh(topo['xFRF'], topo['yFRF'], np.mean(topo['elevation'], axis=0), vmin=-2, vmax=2,
                        label='topo')
     # cmap = plt.scatter(data.xFRF, data.yFRF, c=data.elevation_NAVD88_m-offset, marker='x', vmin=-2, vmax=2, label='crawler')
-    
+    cbar = plt.colorbar()
     cbar.set_label('elevation NAVD88')
     plt.xlabel('xFRF')
     plt.ylabel('yFRF')
@@ -58,13 +58,11 @@ def bathyPlanViewComparison(fname, data, bathy, topo):
     plt.legend()
     # plt.xlim([30, 300])
     # plt.ylim([720, 745])
+    plt.plot(data.xFRF, data.yFRF, 'xk', ms=10, label='crawler')
     
-    plt.savefig(fname1)
+    plt.savefig(fname)
     plt.close()
-    cmap = plt.scatter(data.xFRF, data.yFRF, c='k', marker='x', label='crawler')
-    cbar = plt.colorbar(cmap)
-    fnameBase = os.path.basename(fname).split('.')[0]
-    fname1 = os.path.join(os.path.dirname(fname), fnameBase+"_withLocalObs_XY.png")
+    
 
 def singleProfileComparison(savePath,subB, subC):
     """Makes a comparison of a single profile line
