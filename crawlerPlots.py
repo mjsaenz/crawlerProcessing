@@ -91,15 +91,18 @@ def singleProfileComparison(savePath,subB, subC):
     crawlInterpY = np.interp(newX, subC.sort_values(by='xFRF')['xFRF'], subC.sort_values(by='xFRF')['yFRF'])
     surveyInterpY = np.interp(newX, subB.sort_values(by='xFRF')['xFRF'], subB.sort_values(by='xFRF')['yFRF'])
     alongshoreResidual = crawlInterpY - surveyInterpY
-    # pitch
+    totalTiltInterpY = np.interp(newX, subC.sort_values(by='xFRF')['xFRF'], np.max([subC.attitude_0,
+                                                                                    subC.attitude_1], axis=0))
     #############
     plt.figure()
     plt.suptitle(title)
     ax1 = plt.subplot(211)
     ax1.plot(subB['xFRF'], subB['elevation'], '.', label='survey - raw')
-    ax1.plot(subC['xFRF'], subC['elevation_NAVD88_m'], '.', label='crawler - raw')
-    ax1.plot(newX, crawlInterp, '.', ms=2, label='crawler - interp')
-    ax1.plot(newX, surveyInterp, '.', ms=2, label='survey - interp ')
+    ax1.plot(subC['xFRF'], subC['elevation_NAVD88_m'], '.', ms=1, label='crawler - raw')
+    c = ax1.scatter(newX, crawlInterp, c=totalTiltInterpY, label='crawler - interp')
+    ax1.plot(newX, surveyInterp, '.', ms=1, label='survey - interp ')
+    cbar = plt.colorbar(c, ax=ax1)
+    cbar.set_label('max(pitch,roll)')
     ax1.legend()
     ax1.set_xlabel('xFRF [m]')
     ax1.set_ylabel('elevation [m]')
@@ -114,8 +117,8 @@ def singleProfileComparison(savePath,subB, subC):
     ax2.set_ylabel('yFRF')
 
     ax3 = plt.subplot(224)
-    
-    c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(alongshoreResidual), vmin=0, vmax=7, cmap='bone')
+    # c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(alongshoreResidual), vmin=0, vmax=7, cmap='bone')
+    c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(totalTiltInterpY), vmin=0, vmax=7, cmap='bone')
     ax3.plot([-3, 2], [-3, 2], 'k--')
     stats = sb.statsBryant(surveyInterp, crawlInterp)
     ax3.text(-2.75, 0.5, f"RMSE: {stats['RMSEdemeaned']:.2f}[m]\nbias:{stats['bias']:.2f}[m]")
