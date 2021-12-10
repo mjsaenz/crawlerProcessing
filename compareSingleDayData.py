@@ -29,10 +29,10 @@ savePath = "plots/DUNEXcomparisons"
 # figure out start/end times gather background data
 start = DT.datetime(2021, 11, 22)
 end = DT.datetime(2021, 11, 22)
-# go = getDataFRF.getObs(start, end)
-# topo = go.getLidarDEM()  # get topo data
-# bathy = go.getBathyTransectFromNC(method=0) #get bathy data
-# bathy = pd.DataFrame.from_dict(bathy)
+go = getDataFRF.getObs(start, end)
+topo = go.getLidarDEM()  # get topo data
+bathy = go.getBathyTransectFromNC(method=0) #get bathy data
+bathy = pd.DataFrame.from_dict(bathy)
 ###############################################
 ## first load file and correct elipsoid values
 print(f'working on {start}')
