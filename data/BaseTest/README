@@ -1,0 +1,23 @@
+These data are a parking lot test on 11/22.
+
+Was 2 tests:
+
+
+1: First test (wasn't recorded with hypack)
+file: 20211122_194945.990_telemetry.gssbin_OPENINS_NAV_SOLUTION.csv
+
+
+2: second test
+turned on GSA, GSV, RMC, GGA, RMC strings on receiver
+
+internal offset (i believe was at zero)... was not changed for test.
+
+# took picture on work phone.
+
+
+crawler logger time
+Start: 15:01.30
+End: 15:04.?
+
+hypack file:  "0000_1501.RAW"
+crawler file: "20211122_200137.386_telemetry.gssbin_GPS_STAT_2.csv"
