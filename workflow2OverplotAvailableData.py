@@ -13,13 +13,14 @@ import glob
 import numpy as np
 
 ########################################################################
-flist = glob.glob("/data/robots/crawlerArchive/2021/*/*GPS_STAT*.csv")
+flist = glob.glob("/data/*/*GPS_STAT*.csv")
 for fname in flist:
+
     print(f'working on {fname}')
-    offset = 0
     # yMin = 450  # used for defining which data to "keep"
     # yMax = 465  # then subset
-    ########################################################################
+    ######################################flist = glob.glob("/data/robots/crawlerArchive/2021/*/*GPS_STAT*.csv")
+##################################
     ## first load file and correct elipsoid values
     data = crawlerTools.loadCorrectEllipsoid(fname, geoidFile='data/g2012bu8.bin', plot=False)
     if data is not None:
@@ -32,19 +33,23 @@ for fname in flist:
         #### subset data to one profile
         # data = data[(data['yFRF'] > yMin) & (data['yFRF'] < yMax)]
         
-        go = getDataFRF.getObs(data.time.iloc[0].to_pydatetime() - DT.timedelta(days=1),
-                               data['time'].iloc[-1].to_pydatetime() + DT.timedelta(days=3))
-        # get topo data
-        topo = go.getLidarDEM()
-        
-        #get bathy data
-        bathy = go.getBathyTransectFromNC(method=0)
+        # go = getDataFRF.getObs(data.time.iloc[0].to_pydatetime() - DT.timedelta(days=1),
+        #                        data['time'].iloc[-1].to_pydatetime() + DT.timedelta(days=3))
+        # # get topo data
+        # topo = go.getLidarDEM()
+        #
+        # #get bathy data
+        # bathy = go.getBathyTransectFromNC(method=0)
         # idxBathy = (bathy['profileNumber'] > yMin) & (bathy['profileNumber'] < yMax)
         # bathy = sb.reduceDict(bathy, idxBathy, exemptList = [])
         #
-        
-        crawlerPlots.bathyPlanViewComparison(fname, data, bathy, topo)
+        bathy=None
+        topo=None
         crawlerPlots.bathyEnvalopeComparison(fname, data, bathy)
+        
+        fname = fname.split('.csv')[0]+ 'planViewPosition.png'
+        crawlerPlots.bathyPlanViewComparison(fname, data, bathy, topo)
+        
  
     else:
         print(f'--- ERROR: no lat/lon data in file {os.path.basename(fname)}')
