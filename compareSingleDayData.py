@@ -13,23 +13,19 @@ import pandas as pd
 import numpy as np
 
 ###############################
-# IMUfname = "data/20211019/20211019_181020.816_telemetry.gssbin_OPENINS_IMU_STAT.csv"
-# NAVfname = "data/20211019/20211019_181020.816_telemetry.gssbin_OPENINS_NAV_SOLUTION.csv"
 # GPSfname = "data/20211019/20211019_181020.816_telemetry.gssbin_GPS_STAT_2.csv"
-GPSfname = "data/20210928/20210928_175458.243_telemetry.gssbin_GPS_STAT_2.csv"
-# NAVfname = "data/20210928/20210928_175458.243_telemetry.gssbin_OPENINS_NAV_SOLUTION.csv"
-# IMUfname = "data/20210928/20210928_175458.243_telemetry.gssbin_OPENINS_IMU_STAT.csv"
+# GPSfname = "data/20210928/20210928_185238.280_telemetry.gssbin_GPS_STAT_2.csv"
+GPSfname = "data/20211005/20211005_191258.345_telemetry.gssbin_GPS_STAT_2.csv"
 # mast [86+97 inch] + antenna centroid [8.42 cm] + deck to floor [32 cm] - tread height [1 in]
-# GPSfname = "/home/spike/repos/crawlerProcessing/data/20211122/20211122_194945.990_telemetry.gssbin_GPS_STAT_2.csv"
 offset = 4.6482 + 0.0843 + 0.32 - 0.0254
 yMin = 956  # used for defining which data to "keep"
 yMax = 962  # then subset
-yRange = 5  # in meters distance in alongshore to consider points "valid" for comparion
+yRange = 10  # in meters distance in alongshore to consider points "valid" for comparion
 savePath = "plots/DUNEXcomparisons"
 ########################################################################
 # figure out start/end times gather background data
-start = DT.datetime(2021, 11, 22)
-end = DT.datetime(2021, 11, 22)
+start = DT.datetime(2021, 9, 28)
+end = DT.datetime(2021, 9, 29)
 go = getDataFRF.getObs(start, end)
 topo = go.getLidarDEM()  # get topo data
 bathy = go.getBathyTransectFromNC(method=0) #get bathy data
@@ -55,10 +51,10 @@ crawlerPlots.bathyPlanViewComparison(fname, data, bathy, topo)
 ########### find subset to focus on ########3
 for profile in np.unique(bathy.profileNumber):
     subSetLogic = f'(yFRF <= {profile + yRange}) & (yFRF >={profile - yRange})'
-
+    
     subB = bathy.query(subSetLogic)
     subC = data.query(subSetLogic)
-
+    print(f"found {subC.shape[0]} in range {subSetLogic}")
     #####################################################
     if not subC.empty:
         profileComparison = crawlerPlots.singleProfileComparison(savePath, subB, subC)
