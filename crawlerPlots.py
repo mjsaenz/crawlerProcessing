@@ -19,7 +19,8 @@ def bathyEnvalopeComparison(fname, data, bathy):
 
     ## now make plot
     plt.figure()
-    plt.suptitle(f'elevation envalope for {fnameBase}')
+    plt.suptitle(f"elevation envalope for "
+                 f"{data['time'][0].to_pydatetime().strftime('%Y%m%d %H:%M')}\nSurvey Time: {bathy['time'][0].date()}")
     plt.plot(data.xFRF, data.elevation_NAVD88_m, 'x', label='crawler')
     if bathy is not None:
         plt.plot(bathy['xFRF'], bathy['elevation'], '.', label='survey')
@@ -44,19 +45,24 @@ def bathyPlanViewComparison(fname, data, bathy, topo):
     Returns:
 
     """
+    topoString, surveyString = None, None
     if np.size(data) > 0:
         plt.figure()
         if bathy is not None:
             plt.scatter(bathy['xFRF'], bathy['yFRF'], c=bathy['elevation'], vmin=-2, vmax=2, label='survey')
+            surveyString = f"Survey: {bathy['time'][0].date()}"
         if topo is not None:
             plt.pcolormesh(topo['xFRF'], topo['yFRF'], np.mean(topo['elevation'], axis=0), vmin=-2, vmax=2,
                            label='topo')
+            topoString = f"topo: {topo['time'][0].strftime('%Y%m%d %H:%M')}"
             # cmap = plt.scatter(data.xFRF, data.yFRF, c=data.elevation_NAVD88_m-offset, marker='x', vmin=-2, vmax=2, label='crawler')
             cbar = plt.colorbar()
             cbar.set_label('elevation NAVD88')
         plt.xlabel('xFRF')
         plt.ylabel('yFRF')
-        plt.title(f'crawler comparison for {data.time.iloc[0].to_pydatetime().strftime("%Y-%m-%dT%H:%M:%SZ")}')
+        
+        plt.title(f'crawler comparison crawler Date '
+                  f'{data.time.iloc[0].to_pydatetime().strftime("%Y-%m-%dT%H:%M:%SZ")}\n{surveyString} + {topoString}')
         plt.legend()
         # plt.xlim([30, 300])
         # plt.ylim([720, 745])

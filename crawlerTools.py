@@ -113,9 +113,11 @@ def cleanDF(data, acceptableFix=4):
     """cleans data frame by removing columns with all zeros and converts time, and duplicate frames
     
     """
-    data = data.loc[:,~data.columns.duplicated()]  # remove duplicate columns
+    if data is None:  # sometimes the data frame loaded is bad
+        return data
+    data = data.loc[:, ~data.columns.duplicated()]  # remove duplicate columns
     for key in data.keys():
-        if (data[key] == 0).all():
+        if (data[key] == 0).all() and key != 'gga_fix_quality':
             data = data.drop(columns=key)
     
     data['time'] = pd.to_datetime(data['UNIX_timestamp'], unit='s')
