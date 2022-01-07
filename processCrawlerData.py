@@ -1,3 +1,6 @@
+"""This script was developed by Maile for inital comparison between crawler data and observations.  Using derived
+bathy from pressure and RTK comparison against LARC data .... Offset from GPS antenna to ground is unknown at this
+time"""
 import pandas as pd
 from matplotlib import pyplot as plt
 import numpy as np
@@ -20,7 +23,7 @@ tide = pd.read_csv(f_tide, header=0)
 rmse_nav_up = []
 rmse_nav_back = []
 rmse_rtk = rmse_nav = rmse_130 = rmse_180 = rmse_230 = []
- 
+
 # Larger loop is to go through each csv file
 for ind, c in enumerate(file_changes):
     print(ind)
@@ -71,8 +74,8 @@ for ind, c in enumerate(file_changes):
 
             '''
             # Uncomment to split plot by NAV out and back
-            # Determine which plot to add to (up or back)             
-            if (up == 1): 
+            # Determine which plot to add to (up or back)
+            if (up == 1):
                 axs[0].plot(nav_grid_df.x,nav_grid_df.depth)
                 rmse_nav_up.append(rmse_list[0])
             else:
@@ -88,7 +91,7 @@ for ind, c in enumerate(file_changes):
             rmse_130.append(rmse_list[1])
             rmse_180.append(rmse_list[2])
 
-                
+            
             # Add LARC data to plot at beginning
             if (ind == 3) & (up==1):
                 axs[0].plot(nav_grid_df.x,nav_grid_df.larc,'k:',label= 'LARC (ground truth)')
