@@ -57,7 +57,85 @@ def interpDataFrames(timeStamp2Interp, df, verbose=False): #  = IMUdf , timeStam
     return out
 
 
-def rotateTranslateAntenna2Ground(data, verticalOffset, pitch=0, roll=0):
+def RotateTranslate(vYaw, vPitch, vRoll,  Gxw, Gyw, Gzw, Gxv=0, Gyv=0, Gzv=0, **kwargs):
+    """Rotation and Translation of GPS coordinates from top of crawler mast to vehicle origin (base).  Process
+    assumes that data from vehicle/IMU are in North East Down (NED) coordinate system and
+    
+    Args:
+        vYaw: Vehicle heading in global coordinates (degrees)
+        vPitch: Vehicle pitch (about y-axis) in local coordinate system (degrees)
+        vRoll: Vehicle roll (about x-axis) in local coordinate system (degrees)
+        Gxw: X position of the GPS sensor in World coordinates (assumes rectilinear coordinate system, e.g. FRF,
+        stateplane or UTM)
+        Gyw: Y position of the GPS sensor in World coordinates (assumes rectilinear coordinate system, e.g. FRF,
+        stateplane or UTM)
+        Gzw: Z position of the GPS sensor in World coordinates - vertical datum
+        Gxv: X position in vehicle coordinate system of the GPS sensor (Default=0)
+        Gyv: Y position in vehicle coordinate system of the GPS sensor (Default=0)
+        Gzv: Z position in vehicle coordinate system of the GPS sensor (keep in mind that positive is down,
+        value is likely negative) (Default=0)
+        **kwargs:
+
+    Returns:
+        newX, newY, newZ corrected global coordinate values Gxw, Gyw, Gzw
+    
+    Notes:
+        kudos to Brittany Bruder for help on this one
+
+    """
+    
+    verbose=kwargs.get('verbose', True)
+    #Rotate GPS 90+Yyaw CW about Zg so Yv and Yw match.
+    Rz= np.matrix([[np.cos(np.deg2rad(90+vYaw)), -np.sin(np.rad2deg(90+vYaw)), 0],
+                   [np.sin(np.deg2rad(90+vYaw)),  np.cos(np.rad2deg(90+vYaw)), 0],
+                   [                          0,                            0, 1]])
+    
+    # Rotate GPS Yg 180-Pitch CW so the Xv/Xg and Zv/Zg match
+    Ry=np.matrix([[np.cos(np.deg2rad(180-vPitch)),  0, np.sin(np.deg2rad(180-vPitch))],
+                  [                             0,  1,                              0],
+                  [-np.sin(np.deg2rad(180-vPitch)), 0, np.cos(np.deg2rad(180-vPitch))]])
+    
+    # Rotate GPS Xg Roll CCW so that Yv/Yg and Yv/Yg match
+    # SB question: why neg sin of neg roll???
+    Rx=np.matrix([[1,                            0,                             0],
+                  [0,   np.cos(np.deg2rad(-vRoll)),  -np.sin(np.deg2rad(-vRoll))],
+                  [0,   np.sin(np.deg2rad(-vRoll)),  np.cos(np.deg2rad(-vRoll))]])
+    
+    #Translation Matrices - moving World coords to GPS position
+    # so you can rotate around it (world to GPS) -- and back
+    # Tw2g= np.matrix([[1, 0, 0, -Gxw],
+    #                  [0, 1, 0, -Gyw],
+    #                  [0, 0, 1, -Gzw]])
+    #
+    Tg2w= np.matrix([[1, 0, 0, Gxw],
+                     [0, 1, 0, Gyw],
+                     [0, 0, 1, Gzw]])
+    # create matricies:
+    # order of rotation goes right to left
+    # Rg2v = Rx @ Ry @ Rz
+    # Rv2g = Rg2v.T
+    Rv2g = np.matrix(Rx@Ry@Rz).T
+    
+    # Translation of the vehicle to the GPS
+    Tv2g = np.matrix([[1, 0, 0, -Gxv],
+                      [0, 1, 0, -Gyv],
+                      [0, 0, 1, -Gzv]])
+    
+    # Vg = Rv2g *np.matrix([Gxv, Gyv, Gzv]).T
+    # Tg2v = np.matrix([[1, 0, 0, -Vg.item(0)],
+    #                   [0, 1, 0, -Vg.item(1)],
+    #                   [0, 0, 1, -Vg.item(2)]])
+    # where on vehicle we're interested in projecting the GPS coordinate
+    pos = np.matrix([0, 0, 0, 1]).T
+    
+    sub = Rv2g @ Tv2g @ pos
+    Cw = Tg2w @ np.matrix([sub.item(0), sub.item(1), sub.item(2), 1]).T
+    
+    if verbose: print(f"new Position x: {Cw.item(0):.2f}, y: {Cw.item(1):.2f}, z: {Cw.item(2):.2f}")
+    
+    return Cw.item(0), Cw.item(1), Cw.item(2)
+
+def TranslateOnly_Wrong(data, verticalOffset, pitch=0, roll=0):
     """Rotates and translates the measured antenna elevations to the ground
     
     Args:
@@ -73,7 +151,6 @@ def rotateTranslateAntenna2Ground(data, verticalOffset, pitch=0, roll=0):
         this is just a place holder for the matrix version
         
     """
-    print('check that roll and pitch are proper units')
     data.elevation_NAVD88_m = data.elevation_NAVD88_m - verticalOffset
     return data
 
