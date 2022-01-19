@@ -1,5 +1,9 @@
+import heapq
+
 import numpy as np
 import pandas as pd
+import scipy.signal
+from matplotlib import pyplot as plt
 from pygeodesy import geoids
 import glob
 import os
@@ -135,29 +139,33 @@ def RotateTranslate(vYaw, vPitch, vRoll,  Gxw, Gyw, Gzw, Gxv=0, Gyv=0, Gzv=0, **
     
     return Cw.item(0), Cw.item(1), Cw.item(2)
 
-def rotateTranslatePoints(data):
+def rotateTranslatePoints(data, offset, **kwargs):
     """takes a crawler data frame and rotates translates all of the points, based on the RotateTranslate function
     Args:
         data: crawler data frame
+        offset: scalar value between GPS antenna and "ground", the code will take care of direction convention
     
     Returns:
         Assigns new values to a returned data instance with keys
             elevation_NAVD88_m_corrected, yFRF_corrected, xFRF_corrected
          
     """
+    verbose=kwargs.get('verbose', False)
+    data.rename(columns={'xFRF': 'xFRF_orig', 'yFRF': 'yFRF_orig', 'elevation_NAVD88_m': 'elevation_NAVD88_m_orig'},
+                inplace=True)
     for idx in range(data.shape[0]):
-        x = data.xFRF.iloc[idx]
-        y = data['yFRF'].iloc[idx]
-        z = data['elevation_NAVD88_m'].iloc[idx]
+        x = data['xFRF_orig'].iloc[idx]
+        y = data['yFRF_orig'].iloc[idx]
+        z = data['elevation_NAVD88_m_orig'].iloc[idx]
         pitch_i = data.attitude_pitch_deg.iloc[idx]
         roll_i = data.attitude_roll_deg.iloc[idx]
         yaw_i =  data.attitude_heading_deg.iloc[idx]
         #translate = np.ones_like(roll) * offset
         newX, newY, newZ = RotateTranslate( vYaw=yaw_i, vPitch=pitch_i, vRoll=roll_i, Gxv=0, Gyv=0, Gzv=-offset,
-                                            Gxw=x, Gyw=y, Gzw=z)
-        data.at[idx, 'xFRF_corrected'] = newX
-        data.at[idx, 'yFRF_corrected'] = newY
-        data.at[idx, 'elevation_NAVD88_m_corrected'] = newZ
+                                            Gxw=x, Gyw=y, Gzw=z, verbose=verbose)
+        data.at[idx, 'xFRF'] = newX
+        data.at[idx, 'yFRF'] = newY
+        data.at[idx, 'elevation_NAVD88_m'] = newZ
     
     return data
 
@@ -263,3 +271,42 @@ def closePathOffset(data):
     endY = data['yFRF'][-1]
 
     return np.sqrt(np.abs(startX - endX)**2 - np.abs(startY - endY))
+
+
+def identifyCrawlerProfileLines(data, angleWindow=25, **kwargs):
+    """ Function identifies crawler profile lines by taking top two headings (out/back) and then applying a window
+    Args:
+        data: is the assumed data frame of the crawler processing.  Looks for keys 'attitude_heading_deg' and
+        'x/yFRF' for plotting
+        angleWindow: Window over which to consider part of the profile line. the difference from the top two headings (default=25)
+    Keyword Args:
+        "plot": turn plot  on or off (default=True)
+    Returns
+        data frame
+    """
+    plotting=kwargs.get('plot', True)
+    counts, bins, _  = plt.hist(data['attitude_heading_deg'], bins=18)
+    plt.close()
+    val1, val2 = heapq.nlargest(2, counts)
+    angle1 =  bins[np.argwhere(counts==val1).squeeze()]
+    angle2 = bins[np.argwhere(counts==val2).squeeze()]
+    backAngle = np.max([angle1, angle2])
+    outAngle = np.min([angle1, angle2])
+    outIdx = (data['attitude_heading_deg'] <= outAngle + angleWindow) & (data['attitude_heading_deg'] >= outAngle -
+                                                                         angleWindow)
+    inIdx = (data['attitude_heading_deg'] <= backAngle + angleWindow)  & (data['attitude_heading_deg'] >= backAngle -
+                                                                          angleWindow)
+    totalIdx = outIdx | inIdx  # combining
+    peakX, _ = scipy.signal.find_peaks(np.diff(totalIdx))
+    startIdxOfShortWindows = np.argwhere(np.diff(peakX) < 10).squeeze()
+    for idx in startIdxOfShortWindows:
+        corrected = slice(peakX[idx], peakX[idx+1]+1)  #
+        totalIdx[corrected] = True
+    
+    if plotting is True:
+        plt.figure()
+        plt.scatter(data['xFRF'], data['yFRF'], c=totalIdx)
+        plt.colorbar()
+        plt.title(f'Identified profiles lines from crawler (yellow) \n{data["time"][0].strftime("%Y-%m-%d")}')
+    data['profiles'] = totalIdx
+    return data
