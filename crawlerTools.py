@@ -135,6 +135,32 @@ def RotateTranslate(vYaw, vPitch, vRoll,  Gxw, Gyw, Gzw, Gxv=0, Gyv=0, Gzv=0, **
     
     return Cw.item(0), Cw.item(1), Cw.item(2)
 
+def rotateTranslatePoints(data):
+    """takes a crawler data frame and rotates translates all of the points, based on the RotateTranslate function
+    Args:
+        data: crawler data frame
+    
+    Returns:
+        Assigns new values to a returned data instance with keys
+            elevation_NAVD88_m_corrected, yFRF_corrected, xFRF_corrected
+         
+    """
+    for idx in range(data.shape[0]):
+        x = data.xFRF.iloc[idx]
+        y = data['yFRF'].iloc[idx]
+        z = data['elevation_NAVD88_m'].iloc[idx]
+        pitch_i = data.attitude_pitch_deg.iloc[idx]
+        roll_i = data.attitude_roll_deg.iloc[idx]
+        yaw_i =  data.attitude_heading_deg.iloc[idx]
+        #translate = np.ones_like(roll) * offset
+        newX, newY, newZ = RotateTranslate( vYaw=yaw_i, vPitch=pitch_i, vRoll=roll_i, Gxv=0, Gyv=0, Gzv=-offset,
+                                            Gxw=x, Gyw=y, Gzw=z)
+        data.at[idx, 'xFRF_corrected'] = newX
+        data.at[idx, 'yFRF_corrected'] = newY
+        data.at[idx, 'elevation_NAVD88_m_corrected'] = newZ
+    
+    return data
+
 def TranslateOnly_Wrong(data, verticalOffset, pitch=0, roll=0):
     """Rotates and translates the measured antenna elevations to the ground
     
