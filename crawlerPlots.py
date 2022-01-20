@@ -142,3 +142,101 @@ def singleProfileComparison(savePath,subB, subC):
     plt.close()
     
     return crawlInterp, surveyInterp
+
+
+def profileCompare(subC, subB, **kwargs):
+    """Plotting a comparison with statistics of a single profile line
+    
+    Args:
+        subC: a subset dataframe for a particular profile of interest from the crawler
+        subB: a subset dataframe for comparison ground truth, typically crab/larc
+        **kwargs:
+            fname: save file name
+            subC_og: a secondary version of processing (labeled as subC_og)
+    Returns:
+        statistics dictionary for comparison
+
+    """
+    profileNumber = np.unique(subB['profileNumber']).squeeze()
+    date = subB['time'].iloc[0].date().strftime("%Y-%m-%d")
+    crawlDate = subC['time'].iloc[0].date().strftime("%Y-%m-%d")
+    subC_og = kwargs.get('subC_og', None)
+    saveFname = kwargs.get('fname', f'SingleProfileCompare_{crawlDate}_{profileNumber}.png')
+    
+    #plot/data bounds
+    xStart = max(subC['xFRF'].min(), subB['xFRF'].min())
+    xStop = min(max(subC['xFRF']), max(subB['xFRF']))
+
+    title = f"Comparison with Suvey {date} and\ncrawl date {crawlDate} of profile number {profileNumber}"
+    ############ now work through the interpolation  #####
+    dx =  0.6       #np.min(np.diff(subB['xFRF'].squeeze()).mean(), np.median(np.diff(subC['xFRF'])) )
+    newX = np.linspace(xStart, xStop, np.round((xStop-xStart)/dx).astype(int))
+    crawlInterp = np.interp(newX, subC.sort_values(by='xFRF')['xFRF'], subC.sort_values(by='xFRF')['elevation_NAVD88_m'])
+    surveyInterp = np.interp(newX, subB.sort_values(by='xFRF')['xFRF'], subB.sort_values(by='xFRF')['elevation'])
+    crawlInterpY = np.interp(newX, subC.sort_values(by='xFRF')['xFRF'], subC.sort_values(by='xFRF')['yFRF'])
+    surveyInterpY = np.interp(newX, subB.sort_values(by='xFRF')['xFRF'], subB.sort_values(by='xFRF')['yFRF'])
+    
+    alongshoreResidual = crawlInterpY - surveyInterpY
+    totalPitchInterpY = np.interp(newX, subC.sort_values(by='xFRF')['xFRF'], subC.sort_values(by='xFRF').attitude_pitch_deg)
+
+    if subC_og is not None:
+        crawlInterpY_og = np.interp(newX, subC_og.sort_values(by='xFRF')['xFRF'], subC_og.sort_values(by='xFRF')[
+            'yFRF'])
+        crawlInterp_og = np.interp(newX, subC_og.sort_values(by='xFRF')['xFRF'], subC_og.sort_values(by='xFRF')[
+            'elevation_NAVD88_m'])
+    
+    surveyMS = 1
+    ogMS = 2
+    crawlerMS = 5
+    ### Now do the plot
+    plt.figure()
+    plt.suptitle(title)
+    ax1 = plt.subplot(211)
+    # ax1.plot(subB['xFRF'], subB['elevation'], '.', label='survey - raw')
+    # ax1.plot(subC['xFRF'], subC['elevation_NAVD88_m'], 'r.', ms=crawlerMS, label='crawler - raw')
+    c = ax1.scatter(newX, crawlInterp, c=totalPitchInterpY, s=25, vmin=-8, vmax=8, label='crawler - interp',
+                    cmap='RdBu')
+    if subC_og is not None:
+        ax1.plot(newX, crawlInterp_og, 'b.', ms=ogMS, label='$crawler_{og}$')
+    ax1.plot(newX, surveyInterp, 'k.', ms=surveyMS, label='survey-interp')
+    cbar = plt.colorbar(c, ax=ax1)
+    cbar.set_label('pitch')
+    
+    ax1.set_xlabel('xFRF [m]')
+    ax1.set_ylabel('elevation [m]')
+    ax1.set_xlim([xStart-20, xStop+20])
+    ax1.set_ylim([subC['elevation_NAVD88_m'].min()-0.5, subC['elevation_NAVD88_m'].max()+0.5])
+
+    ax2 = plt.subplot(223)
+    ax2.plot(subC['xFRF'], subC['yFRF'], 'r.', ms=crawlerMS, label='crawler')
+    ax2.plot(subB['xFRF'], subB['yFRF'], 'k.',ms=surveyMS, label='survey')
+    if subC_og is not None:
+        ax2.plot(newX, crawlInterpY_og, 'b.', ms=ogMS, label='$crawler_{og}$')
+    ax2.set_xlim([xStart-5, xStop+5])
+    ax2.set_xlabel('xFRF')
+    ax2.set_ylabel('yFRF')
+    ax2.legend()
+    
+    ax3 = plt.subplot(224)
+    c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(alongshoreResidual), s=crawlerMS, vmin=0, vmax=7, cmap='bone',
+                    label='Translate/Rotate')
+    if subC_og is not None:
+        c = ax3.scatter(crawlInterp_og, surveyInterp, c=np.abs(alongshoreResidual), marker='x',s=ogMS, vmin=0, vmax=7, \
+                        cmap='bone', label='crawler_og')
+        # ax3.legend()
+        stats_og = sb.statsBryant(surveyInterp, crawlInterp_og)
+        ax3.text(0, -1, f'            OG:\nRMSE: {stats_og["RMSEdemeaned"]:.2f}[m]\nbias:{stats_og["bias"]:.2f}[m]')
+    # c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(totalPitchInterpY), vmin=0, vmax=7, cmap='bone')
+    ax3.plot([-3, 2], [-3, 2], 'k--')
+    stats = sb.statsBryant(surveyInterp, crawlInterp)
+    ax3.text(-1.5, 1.5, f"RMSE: {stats['RMSEdemeaned']:.2f}[m]\nbias:{stats['bias']:.2f}[m]")
+    ax3.set_xlabel('elevation survey')
+    ax3.set_ylabel('elevation crawler')
+    cbar = plt.colorbar(c)
+    cbar.set_label('alonshore residual')
+    ax3.set_ylim([subC['elevation_NAVD88_m'].min()-0.5, subC['elevation_NAVD88_m'].max()+0.5])
+    ax3.set_xlim([subC['elevation_NAVD88_m'].min()-0.5, subC['elevation_NAVD88_m'].max()+0.5])
+
+    plt.tight_layout(rect=[0.01, 0.01, 0.9, 1])
+    plt.savefig(saveFname)
+    plt.close()
