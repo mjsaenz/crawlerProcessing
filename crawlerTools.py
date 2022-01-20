@@ -285,6 +285,7 @@ def identifyCrawlerProfileLines(data, angleWindow=25, **kwargs):
         data frame
     """
     plotting=kwargs.get('plot', True)
+    Thresh4ConcurrentLine = 10
     counts, bins, _  = plt.hist(data['attitude_heading_deg'], bins=18)
     plt.close()
     val1, val2 = heapq.nlargest(2, counts)
@@ -298,15 +299,35 @@ def identifyCrawlerProfileLines(data, angleWindow=25, **kwargs):
                                                                           angleWindow)
     totalIdx = outIdx | inIdx  # combining
     peakX, _ = scipy.signal.find_peaks(np.diff(totalIdx))
-    startIdxOfShortWindows = np.argwhere(np.diff(peakX) < 10).squeeze()
+    startIdxOfShortWindows = np.argwhere(np.diff(peakX) < Thresh4ConcurrentLine).squeeze()
+    if np.ndim(startIdxOfShortWindows) == 0: startIdxOfShortWindows = np.expand_dims(startIdxOfShortWindows, axis=0)
+    # take the start of each of the windows, then set the boolean locations to True and delete the locaiton for the
+    # ones that need editing
     for idx in startIdxOfShortWindows:
         corrected = slice(peakX[idx], peakX[idx+1]+1)  #
         totalIdx[corrected] = True
+        newPeakX = np.delete(peakX, [idx, idx+1])
+    data['profileNumber'] = totalIdx
+    
+    
+    newPeakX = np.insert(newPeakX+1, 0, 0)
+    # now find the median y-position and assign that as the line number
+    for idx, peak in enumerate(newPeakX):
+        if idx == len(newPeakX)-1:
+            mySlice = slice(newPeakX[idx], len(data))
+        else:
+            mySlice = slice(newPeakX[idx], newPeakX[idx+1])
+        if data['profileNumber'][mySlice].all() == True:
+            data.loc[mySlice, 'profileNumber'] = np.median(data['yFRF'][mySlice]).astype(int)
+        
     
     if plotting is True:
+    
         plt.figure()
-        plt.scatter(data['xFRF'], data['yFRF'], c=totalIdx)
+        plt.scatter(np.ma.array(data['xFRF'], mask=data['profileNumber'] == False), np.ma.array(data['yFRF'],
+                    mask=data['profileNumber'] == False), c=np.ma.array(data['profileNumber'], mask=data[
+                    'profileNumber'] == False))
         plt.colorbar()
         plt.title(f'Identified profiles lines from crawler (yellow) \n{data["time"][0].strftime("%Y-%m-%d")}')
-    data['profiles'] = totalIdx
+    
     return data
