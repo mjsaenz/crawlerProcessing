@@ -53,7 +53,7 @@ def bathyPlanViewComparison(fname, data, bathy, topo):
             surveyString = f"Survey: {bathy['time'][0].date()}"
         if topo is not None:
             plt.pcolormesh(topo['xFRF'], topo['yFRF'], np.mean(topo['elevation'], axis=0), vmin=-2, vmax=2,
-                           label='topo')
+                           label='topo', shading='flat')
             topoString = f"topo: {topo['time'][0].strftime('%Y%m%d %H:%M')}"
             # cmap = plt.scatter(data.xFRF, data.yFRF, c=data.elevation_NAVD88_m-offset, marker='x', vmin=-2, vmax=2, label='crawler')
             cbar = plt.colorbar()

@@ -24,6 +24,7 @@ def loadAndMergeFiles(path2SingleFile, verbose=True):
     """
     # first search the path for all files
     flist = glob.glob(os.path.join(os.path.dirname(path2SingleFile), os.path.basename(path2SingleFile).split('.')[0] + "*.csv"))
+    if len(flist) == 0: return None
     # then load NAv solution file
     GPSfname = flist.pop(np.argwhere(["GPS_STAT_2" in f for f in flist]).squeeze())
     data = loadCorrectEllipsoid(GPSfname, geoidFile='data/g2012bu8.bin', plot=False)
@@ -285,6 +286,7 @@ def identifyCrawlerProfileLines(data, angleWindow=25, **kwargs):
         data frame
     """
     plotting=kwargs.get('plot', True)
+    fname = kwargs.get('fname', 'ProfileLineCrawler.png')
     Thresh4ConcurrentLine = 10
     counts, bins, _  = plt.hist(data['attitude_heading_deg'], bins=18)
     plt.close()
@@ -329,5 +331,6 @@ def identifyCrawlerProfileLines(data, angleWindow=25, **kwargs):
                     'profileNumber'] == False))
         plt.colorbar()
         plt.title(f'Identified profiles lines from crawler (yellow) \n{data["time"][0].strftime("%Y-%m-%d")}')
-    
+        plt.savefig(fname)
+        plt.close()
     return data
