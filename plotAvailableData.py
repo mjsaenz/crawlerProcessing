@@ -45,7 +45,7 @@ for fname in sorted(flist):
         #
         # bathy=None
         # topo=None
-        data = crawlerTools.rotateTranslateAntenna2Ground(data, offset)
+        data = crawlerTools.TranslateOnly_Wrong(data, offset)
         crawlerPlots.bathyEnvalopeComparison(fname, data, bathy)
         
         fname = fname.split('.')[0] + 'withLocalObs_XY.png'
