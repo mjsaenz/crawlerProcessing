@@ -178,6 +178,8 @@ def profileCompare(subC, subB, **kwargs):
     
     alongshoreResidual = crawlInterpY - surveyInterpY
     totalPitchInterpY = np.interp(newX, subC.sort_values(by='xFRF')['xFRF'], subC.sort_values(by='xFRF').attitude_pitch_deg)
+    totalRollInterpY = np.interp(newX, subC.sort_values(by='xFRF')['xFRF'], subC.sort_values(
+            by='xFRF').attitude_roll_deg)
 
     if subC_og is not None:
         crawlInterpY_og = np.interp(newX, subC_og.sort_values(by='xFRF')['xFRF'], subC_og.sort_values(by='xFRF')[
@@ -208,7 +210,7 @@ def profileCompare(subC, subB, **kwargs):
     ax1.set_ylim([subC['elevation_NAVD88_m'].min()-0.5, subC['elevation_NAVD88_m'].max()+0.5])
 
     ax2 = plt.subplot(223)
-    ax2.plot(subC['xFRF'], subC['yFRF'], 'r.', ms=crawlerMS, label='crawler')
+    ax2.scatter(newX, crawlInterpY, c=totalRollInterpY, s=25, label='crawler')
     ax2.plot(subB['xFRF'], subB['yFRF'], 'k.',ms=surveyMS, label='survey')
     if subC_og is not None:
         ax2.plot(newX, crawlInterpY_og, 'b.', ms=ogMS, label='$crawler_{og}$')
@@ -220,16 +222,22 @@ def profileCompare(subC, subB, **kwargs):
     ax3 = plt.subplot(224)
     c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(alongshoreResidual), s=crawlerMS, vmin=0, vmax=7, cmap='bone',
                     label='Translate/Rotate')
+    
+    # c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(totalPitchInterpY), vmin=0, vmax=7, cmap='bone')
+    ax3.plot([-3, 2], [-3, 2], 'k--')
+    stats = sb.statsBryant(surveyInterp, crawlInterp)
+    ylims = ax3.get_ylim()
+    xlims = ax3.get_xlim()
     if subC_og is not None:
         c = ax3.scatter(crawlInterp_og, surveyInterp, c=np.abs(alongshoreResidual), marker='x',s=ogMS, vmin=0, vmax=7, \
                         cmap='bone', label='crawler_og')
         # ax3.legend()
         stats_og = sb.statsBryant(surveyInterp, crawlInterp_og)
-        ax3.text(0, -1, f'            OG:\nRMSE: {stats_og["RMSEdemeaned"]:.2f}[m]\nbias:{stats_og["bias"]:.2f}[m]')
-    # c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(totalPitchInterpY), vmin=0, vmax=7, cmap='bone')
-    ax3.plot([-3, 2], [-3, 2], 'k--')
-    stats = sb.statsBryant(surveyInterp, crawlInterp)
-    ax3.text(-1.5, 1.5, f"RMSE: {stats['RMSEdemeaned']:.2f}[m]\nbias:{stats['bias']:.2f}[m]")
+        ax3.text(np.diff(xlims) * .5 + xlims[0], np.diff(ylims) * .33 + ylims[0], f'            OG:\nRMSE:'
+                                                                f' {stats_og["RMSEdemeaned"]:.2f}['
+                                                    f'm]\nbias:{stats_og["bias"]:.2f}[m]')
+    ax3.text(np.diff(xlims) * .33 + xlims[0], np.diff(ylims) * .66 + ylims[0], f"RMSE: {stats['RMSEdemeaned']:.2f}["
+                                                                              f"m]\nbias:{stats['bias']:.2f}[m]")
     ax3.set_xlabel('elevation survey')
     ax3.set_ylabel('elevation crawler')
     cbar = plt.colorbar(c)

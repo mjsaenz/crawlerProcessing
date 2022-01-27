@@ -22,18 +22,25 @@ def loadAndMergeFiles(path2SingleFile, verbose=True):
         single data frame with all csv's combined
         
     """
+    print('WARNING: Load and Merge Files has no control of variable names')
     # first search the path for all files
-    flist = glob.glob(os.path.join(os.path.dirname(path2SingleFile), os.path.basename(path2SingleFile).split('.')[0] + "*.csv"))
+    flist = sorted(glob.glob(os.path.join(os.path.dirname(path2SingleFile), os.path.basename(path2SingleFile).split(
+            '.')[0] + "*.csv")))
     if len(flist) == 0: return None
     # then load NAv solution file
     GPSfname = flist.pop(np.argwhere(["GPS_STAT_2" in f for f in flist]).squeeze())
     data = loadCorrectEllipsoid(GPSfname, geoidFile='data/g2012bu8.bin', plot=False)
     for fname in flist:
         if verbose: print(f'loading {fname}')
+        if 'SPARTON' in fname or "OPENINS_COMPASS_STAT" in fname:
+            if verbose: print(f'skipping {fname}')
+            # skipping thes
+            continue
         tempdf = pd.read_csv(fname, header=4, error_bad_lines=False)
         if "GPS_STAT_1" in fname:
             tempdf = tempdf.add_prefix("GPS1_")
             tempdf['UNIX_timestamp'] = tempdf.pop("GPS1_UNIX_timestamp")
+        
         dataOut = interpDataFrames(data.UNIX_timestamp, tempdf, verbose=verbose)
         data = data.merge(dataOut, how='left', on="UNIX_timestamp")
         if 'gga_fix_quality' not in data.keys():
@@ -41,6 +48,55 @@ def loadAndMergeFiles(path2SingleFile, verbose=True):
     
     return data
 
+def loadAndMergePriorityFiles(path2SingleFile, verbose=True):
+    """This function loads all Greensea file types.
+    
+    function will first go out to find similar csv's with the same time stamp.  then it will correct the GGA geoid
+    with NAD83 - geoid 2012B. then it will interpolate all of the files to the GPS time stamp (1HZ), then it will
+    compbine all of the data to the NAV Soln data frame
+    
+    Args:
+        path2SingleFile: a single file (full extension)
+
+    Returns:
+        single data frame with all csv's combined
+        
+    """
+    # first search the path for all files
+    flist = glob.glob(os.path.join(os.path.dirname(path2SingleFile), os.path.basename(path2SingleFile).split(
+            '.')[0] + "*GPS*.csv"))
+    # could loop through below with different key's for specific files interested in loading
+    flist.extend(glob.glob(os.path.join(os.path.dirname(path2SingleFile), os.path.basename(path2SingleFile).split(
+            '.')[0] + "*IMU*.csv")))
+    if len(flist) == 0: return None
+    # then load NAv solution file
+    GPSfname = flist.pop(np.argwhere(["GPS_STAT_2" in f for f in flist]).squeeze())
+    data = loadCorrectEllipsoid(GPSfname, geoidFile='data/g2012bu8.bin', plot=False)
+    for fname in sorted(flist):
+        if verbose: print(f'loading {fname}')
+        tempdf = pd.read_csv(fname, header=4, error_bad_lines=False)
+        
+        # check to make sure my IMU data are good before assigning priority variable names
+        if ('attitude_heading_deg' in tempdf.columns and (tempdf['attitude_heading_deg'] == 0).all()) |  (
+                'attitude_pitch_deg' in tempdf.columns and (tempdf['attitude_pitch_deg'] == 0).all()) |  (
+                   'attitude_roll_deg'  in tempdf.columns and (tempdf['attitude_roll_deg'] == 0).all()):
+            tempdf = tempdf.add_prefix("KVH_")
+            tempdf['UNIX_timestamp'] = tempdf.pop("KVH_UNIX_timestamp")
+            tempdf['IMU_Source'] = 'SPARTON'
+            print(f'    assigned priority to SPARTON. BAD IMU data in {fname}')
+        elif "OPENINS_IMU" in fname:
+            tempdf['IMU_Source'] = 'KVH1750'
+            
+        if "GPS_STAT_1" in fname and "GPS_STAT_2" in path2SingleFile:
+            tempdf = tempdf.add_prefix("GPS1_")
+            tempdf['UNIX_timestamp'] = tempdf.pop("GPS1_UNIX_timestamp")
+        
+        dataOut = interpDataFrames(data.UNIX_timestamp, tempdf, verbose=verbose)
+        data = data.merge(dataOut, how='left', on="UNIX_timestamp")
+        if 'gga_fix_quality' not in data.keys():
+            print(f"ERROR HERE: {fname}")
+    
+    return data
 
 
 def interpDataFrames(timeStamp2Interp, df, verbose=False): #  = IMUdf , timeStamp2Interp = data['UNIX_timestamp']
@@ -50,12 +106,12 @@ def interpDataFrames(timeStamp2Interp, df, verbose=False): #  = IMUdf , timeStam
             try:
                 out[key] = np.interp(timeStamp2Interp, df.UNIX_timestamp.astype(float), df[key])
             except TypeError:  # typically strings that are all the same
-                if verbose: print(f'{key} not included')
+                if verbose: print(f'   {key} not included')
                 continue
                 # if df[key].all(): #[0] == df[key]).all():
                 #     out[key] = df[key][:len(timeStamp2Interp)]
             except ValueError:
-                if verbose: print(f'{key} not included')
+                if verbose: print(f'   {key} not included')
                 continue
             finally:
                 out['UNIX_timestamp'] = timeStamp2Interp
@@ -154,11 +210,15 @@ def rotateTranslatePoints(data, offset, **kwargs):
     verbose=kwargs.get('verbose', False)
     data.rename(columns={'xFRF': 'xFRF_orig', 'yFRF': 'yFRF_orig', 'elevation_NAVD88_m': 'elevation_NAVD88_m_orig'},
                 inplace=True)
+    if ('attitude_pitch_deg' not in data.keys()) & ('attitude_roll_deg' not in data.keys()) & ('attitude_heading_deg'
+            not in data.keys()):
+        print('  NO GOOD IMU Data to rotate/translate GPS values with')
+        return None
     for idx in range(data.shape[0]):
         x = data['xFRF_orig'].iloc[idx]
         y = data['yFRF_orig'].iloc[idx]
         z = data['elevation_NAVD88_m_orig'].iloc[idx]
-        pitch_i = data.attitude_pitch_deg.iloc[idx]
+        pitch_i = data['attitude_pitch_deg'].iloc[idx]
         roll_i = data.attitude_roll_deg.iloc[idx]
         yaw_i =  data.attitude_heading_deg.iloc[idx]
         #translate = np.ones_like(roll) * offset
@@ -282,50 +342,85 @@ def identifyCrawlerProfileLines(data, angleWindow=25, **kwargs):
         angleWindow: Window over which to consider part of the profile line. the difference from the top two headings (default=25)
     Keyword Args:
         "plot": turn plot  on or off (default=True)
+        'ConsutivePointThresh': threshold for concurrent points that are required to define a line (default=50).
+        default value equates to about a 1.5m
+        'lineLengthThreshold': minimum length that a profile line can be in points (defaul=75)
+        
     Returns
         data frame
     """
     plotting=kwargs.get('plot', True)
     fname = kwargs.get('fname', 'ProfileLineCrawler.png')
-    Thresh4ConcurrentLine = 10
-    counts, bins, _  = plt.hist(data['attitude_heading_deg'], bins=18)
+    Thresh4ConcurrentLine = kwargs.get('ConsutivePointThresh', 25)   # number of consecutive points required for a line
+    lineLengthThreshold = kwargs.get('lineLengthThreshold', 150)
+    counts, bins, _  = plt.hist(data['attitude_heading_deg'], bins=20)
     plt.close()
     val1, val2 = heapq.nlargest(2, counts)
     angle1 =  bins[np.argwhere(counts==val1).squeeze()]
     angle2 = bins[np.argwhere(counts==val2).squeeze()]
     backAngle = np.max([angle1, angle2])
     outAngle = np.min([angle1, angle2])
-    outIdx = (data['attitude_heading_deg'] <= outAngle + angleWindow) & (data['attitude_heading_deg'] >= outAngle -
-                                                                         angleWindow)
-    inIdx = (data['attitude_heading_deg'] <= backAngle + angleWindow)  & (data['attitude_heading_deg'] >= backAngle -
-                                                                          angleWindow)
+    outIdx = (data['attitude_heading_deg'] <= outAngle + angleWindow) & \
+             (data['attitude_heading_deg'] >= outAngle - angleWindow)
+    inIdx = (data['attitude_heading_deg'] <= backAngle + angleWindow)  & \
+            (data['attitude_heading_deg'] >= backAngle - angleWindow)
     totalIdx = outIdx | inIdx  # combining
     peakX, _ = scipy.signal.find_peaks(np.diff(totalIdx))
     startIdxOfShortWindows = np.argwhere(np.diff(peakX) < Thresh4ConcurrentLine).squeeze()
     if np.ndim(startIdxOfShortWindows) == 0: startIdxOfShortWindows = np.expand_dims(startIdxOfShortWindows, axis=0)
-    # take the start of each of the windows, then set the boolean locations to True and delete the locaiton for the
-    # ones that need editing
+    # take the start of each of the windows, then set the boolean locations to True and delete the location for the
+    # ones that are below the
     for idx in startIdxOfShortWindows:
-        corrected = slice(peakX[idx], peakX[idx+1]+1)  #
-        totalIdx[corrected] = True
-        newPeakX = np.delete(peakX, [idx, idx+1])
+        corrected = slice(peakX[idx], peakX[idx] + np.diff(peakX)[idx] + 1) #
+        totalIdx[corrected] = True  # these are actually continuing a line
+
+    newPeakX,  _ = scipy.signal.find_peaks(np.diff(totalIdx)) # np.delete(peakX, startIdxOfShortWindows)  # remove the
+    newPeakX = np.append(0, newPeakX)
+    # corrected points from the line start array
+    for pp, peak in enumerate(newPeakX):
+        if pp == len(newPeakX)-1:
+            endSeg = len(totalIdx)
+        else:
+            endSeg = newPeakX[pp+1]
+        #if totalIdx[newPeakX[ppprint(endSeg-peak)
+        if (endSeg - peak < lineLengthThreshold) & (totalIdx[newPeakX[pp]] == False):
+            totalIdx[peak: endSeg+1] = False
+    
+    # now remove weirdly short profile line segments that are true
+    newPeakX,  _ = scipy.signal.find_peaks(np.diff(totalIdx)) # np.delete(peakX, startIdxOfShortWindows)  # remove the
     data['profileNumber'] = totalIdx
+
+    # QA/QC plot
+    plt.figure();
+    plt.subplot(211)
+    plt.scatter(data['xFRF'], data['yFRF'], c=totalIdx)
+    plt.plot(data['xFRF'][peakX], data['yFRF'][peakX], 'rx', label='og peaks', ms=10)
+    #plt.plot(data['xFRF'][peakX[startIdxOfShortWindows]], data['yFRF'][peakX[startIdxOfShortWindows]], 'kx', ms=10,
+    #          label='peaksRemoved')
+    plt.plot(data['xFRF'][newPeakX], data['yFRF'][newPeakX], 'bX', label='newPeaks')
+    plt.legend()
     
-    
-    newPeakX = np.insert(newPeakX+1, 0, 0)
+    plt.subplot(212)
+    plt.plot(totalIdx)
+    plt.plot(peakX,np.ones_like(peakX), 'rx', label='og peaks')
+    plt.plot(newPeakX, np.ones_like(newPeakX), 'bx', label='newPeaks')
+    plt.legend()
+
+    newPeakX = np.append(0, newPeakX)
     # now find the median y-position and assign that as the line number
     for idx, peak in enumerate(newPeakX):
         if idx == len(newPeakX)-1:
             mySlice = slice(newPeakX[idx], len(data))
         else:
-            mySlice = slice(newPeakX[idx], newPeakX[idx+1])
+            mySlice = slice(newPeakX[idx]+1, newPeakX[idx+1])
         if data['profileNumber'][mySlice].all() == True:
             data.loc[mySlice, 'profileNumber'] = np.median(data['yFRF'][mySlice]).astype(int)
-        
     
     if plotting is True:
+        data['profileNumber'].unique()
     
         plt.figure()
+        # plt.scatter(data['xFRF'], data['yFRF'], c=totalIdx)
         plt.scatter(np.ma.array(data['xFRF'], mask=data['profileNumber'] == False), np.ma.array(data['yFRF'],
                     mask=data['profileNumber'] == False), c=np.ma.array(data['profileNumber'], mask=data[
                     'profileNumber'] == False))
