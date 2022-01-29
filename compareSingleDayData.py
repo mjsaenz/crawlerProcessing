@@ -8,14 +8,17 @@ import crawlerTools
 import datetime as DT
 import pandas as pd
 import glob
+import pickle
 ###############################
-# GPSfname = "data/20211019/20211019_181020.816_telemetry.gssbin_GPS_STAT_2.csv"
-GPSfname = "/data/20211005/20211005_191258.345_telemetry.gssbin_GPS_STAT_2.csv"
-GPSfname = "/data/20210928/20210928_185238.280_telemetry.gssbin_GPS_STAT_2.csv"
+dateString = '20211017' #'20211020'
+getdata = True
 
-flist = glob.glob('/data/20211005/*GPS_STAT_2.csv')
+#GPSfname = "data/20211019/20211019_181020.816_telemetry.gssbin_GPS_STAT_2.csv"
+#GPSfname = "/data/20211005/20211005_191258.345_telemetry.gssbin_GPS_STAT_2.csv"
+#GPSfname = "/data/20210928/20210928_185238.280_telemetry.gssbin_GPS_STAT_2.csv"
+
+flist = glob.glob(f'/data/{dateString}/*GPS_STAT_2.csv')
 for GPSfname in flist:
-    GPSfname = '/data/20211005/20211005_191258.345_telemetry.gssbin_GPS_STAT_2.csv'
     print(f"\n\nWorking on {GPSfname}\n\n")
     # mast [86+97 inch] + antenna centroid [8.42 cm] + deck to floor [32 cm] - tread height [1 in]
     offset = 4.6482 + 0.0843 + 0.32 - 0.0254
@@ -23,7 +26,6 @@ for GPSfname in flist:
     yMax = 1000  # then subset
     yRange = 10  # in meters distance in alongshore to consider points "valid" for comparion
     savePath = "plots/DUNEXcomparisons"
-    getdata = True
     ########################################################################
     # figure out start/end times gather background data
     start = DT.datetime.strptime(os.path.dirname(GPSfname).split('/')[-1], "%Y%m%d")
@@ -33,10 +35,10 @@ for GPSfname in flist:
         topo = go.getLidarDEM()  # get topo data
         bathy = go.getBathyTransectFromNC(method=0) #get bathy data
         bathy = pd.DataFrame.from_dict(bathy)
+    elif os.path.isfile(f'data/{start.strftime("%Y_%m_%d")}_bathytopo.pickle'):
+        bathy, topo = pickle.load(open(start.strftime("%Y_%m_%d"), 'rb'))
     else:
-        fname = "data/2021_09_28_bathytopo.pickle"
-        import pickle
-        bathy, topo = pickle.load(open(fname, 'rb'))
+        bathy, topo = None, None
     ###############################################
     ## first load file and correct elipsoid values
     print(f'working on {start}')
