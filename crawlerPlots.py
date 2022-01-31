@@ -16,11 +16,13 @@ def bathyEnvalopeComparison(fname, data, bathy):
 
     """
     fnameBase = os.path.basename(fname).split('.')[0]
-
+    if bathy is None: bathyTime=None
+    else: bathyTime = bathy['time'][0].date()
     ## now make plot
     plt.figure()
     plt.suptitle(f"elevation envalope for "
-                 f"{data['time'][0].to_pydatetime().strftime('%Y%m%d %H:%M')}\nSurvey Time: {bathy['time'][0].date()}")
+                 f"{data['time'][0].to_pydatetime().strftime('%Y%m%d %H:%M')}\nSurvey Time: "
+                 f"{bathyTime}")
     plt.plot(data.xFRF, data.elevation_NAVD88_m, 'x', label='crawler')
     if bathy is not None:
         plt.plot(bathy['xFRF'], bathy['elevation'], '.', label='survey')

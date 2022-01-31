@@ -1,4 +1,5 @@
 """ This code is just a general development script for doing a single day/profile comparison"""
+import math
 import sys, os
 import crawlerPlots
 from testbedutils import geoprocess as gp
@@ -10,22 +11,22 @@ import pandas as pd
 import glob
 import pickle
 ###############################
-dateString = '20211017' #'20211020'
-getdata = True
+dateString = '20211019' #'20211020'
+getdata = False
+# mast [86+97 inch] + antenna centroid [8.42 cm] + deck to floor [32 cm] - tread height [1 in]
+offset = 4.6482 + 0.0843 + 0.32 - 0.0254
+yMin = 0 # used for defining which data to "keep"
+yMax = 1000  # then subset
+yRange = 10  # in meters distance in alongshore to consider points "valid" for comparion
+savePath = "plots/DUNEXcomparisons"
 
-#GPSfname = "data/20211019/20211019_181020.816_telemetry.gssbin_GPS_STAT_2.csv"
-#GPSfname = "/data/20211005/20211005_191258.345_telemetry.gssbin_GPS_STAT_2.csv"
-#GPSfname = "/data/20210928/20210928_185238.280_telemetry.gssbin_GPS_STAT_2.csv"
-
-flist = glob.glob(f'/data/{dateString}/*GPS_STAT_2.csv')
+# flist = glob.glob(f'/data/{dateString}/*GPS_STAT_2.csv')
+flist = ['/data/20211019/20211019_175717.075_telemetry.gssbin_GPS_STAT_2.csv']
 for GPSfname in flist:
-    print(f"\n\nWorking on {GPSfname}\n\n")
-    # mast [86+97 inch] + antenna centroid [8.42 cm] + deck to floor [32 cm] - tread height [1 in]
-    offset = 4.6482 + 0.0843 + 0.32 - 0.0254
-    yMin = 0 # used for defining which data to "keep"
-    yMax = 1000  # then subset
-    yRange = 10  # in meters distance in alongshore to consider points "valid" for comparion
-    savePath = "plots/DUNEXcomparisons"
+    print(f"\n\nWorking on {dateString}\n\n")
+    data = crawlerTools.loadAndMergePriorityFiles(GPSfname, verbose=False, combineDays=True)
+    # data = crawlerTools.loadAndMergeFiles(GPSfname, verbose=False)  # no control of output variable names
+
     ########################################################################
     # figure out start/end times gather background data
     start = DT.datetime.strptime(os.path.dirname(GPSfname).split('/')[-1], "%Y%m%d")
@@ -36,15 +37,11 @@ for GPSfname in flist:
         bathy = go.getBathyTransectFromNC(method=0) #get bathy data
         bathy = pd.DataFrame.from_dict(bathy)
     elif os.path.isfile(f'data/{start.strftime("%Y_%m_%d")}_bathytopo.pickle'):
-        bathy, topo = pickle.load(open(start.strftime("%Y_%m_%d"), 'rb'))
+        bathy, topo = pickle.load(open(f'data/{start.strftime("%Y_%m_%d")}_bathytopo.pickle', 'rb'))
     else:
         bathy, topo = None, None
     ###############################################
     ## first load file and correct elipsoid values
-    print(f'working on {start}')
-    data = crawlerTools.loadAndMergePriorityFiles(GPSfname, verbose=False)
-    # data = crawlerTools.loadAndMergeFiles(GPSfname, verbose=False)  # no control of output variable names
-    
     if data is None:
         raise NotImplementedError('Need files to load!')
     data = crawlerTools.cleanDF(data)
@@ -68,15 +65,19 @@ for GPSfname in flist:
     crawlerPlots.bathyPlanViewComparison(fname, data_og, bathy, topo)
     
     ## identify profile lines
-    data = crawlerTools.identifyCrawlerProfileLines(data, angleWindow=25, fname=os.path.join(os.path.dirname(GPSfname),
-                                            ''.join(os.path.basename(GPSfname).split('.')[0])+f"IdentifyProfileLines.png"))
-    data_og = crawlerTools.identifyCrawlerProfileLines(data_og, angleWindow=25, fname=os.path.join(os.path.dirname(GPSfname),
-                                    ''.join(os.path.basename(GPSfname).split('.')[0])+f"IdentifyProfileLines_OG.png"))
-    ## angular Window
+    # data = crawlerTools.identifyCrawlerProfileLines(data, angleWindow=25, lineLengthThreshold=40,
+    #      consecutivePointThresh=50, fname=os.path.join(os.path.dirname(GPSfname),  ''.join(os.path.basename(
+    #             GPSfname).split('.')[0])+f"IdentifyProfileLines.png"))
+    #
+    # data_og = crawlerTools.identifyCrawlerProfileLines(data_og, angleWindow=25, fname=os.path.join(os.path.dirname(GPSfname),
+    #                                 ''.join(os.path.basename(GPSfname).split('.')[0])+f"IdentifyProfileLines_OG.png"))
+    # ## angular Window
+    bathy = pickle.load(open('/home/spike/repos/crawlerProcessing/LarcData.pickle', 'rb'))
     for profile in bathy['profileNumber'].unique():
         if profile <= 1: continue  #handles panda's error AttributeError: 'UnaryOp' object has no attribute 'evaluate'
         subSetLogic = f'(yFRF <= {profile + yRange}) & (yFRF >={profile - yRange}) & (profiles==True)'
         subB = bathy.query(f'(profileNumber == {profile})')
+        crawlerTools.searchPointsInRadius(subB, data)
         subC = data.query(f'(profileNumber <= {profile + yRange}) & (profileNumber >= {profile - yRange})')
         subC_og = data.query(f'(profileNumber <= {profile + yRange}) & (profileNumber >= {profile - yRange})')
         if not subC.empty and not subB.empty:

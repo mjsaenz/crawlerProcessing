@@ -1,5 +1,5 @@
 import heapq
-
+import math
 import numpy as np
 import pandas as pd
 import scipy.signal
@@ -7,6 +7,81 @@ from matplotlib import pyplot as plt
 from pygeodesy import geoids
 import glob
 import os
+from testbedutils import sblib as sb
+from scipy.spatial import cKDTree
+
+def searchPointsInRadius(groundTruth, searchPoints, radius=5):
+    """
+    
+    Args:
+        groundTruth: Loop over these points, find closest corresponding point in search point
+        searchPoints: search these points for corresponding
+        radius: if point located outside of this radius, skip the point
+
+    Keyword Args:
+        removeDuplicates: will go through and remove points that are saved to the output dataframe that have same
+        groundtruth point
+        
+    Returns:
+
+    """
+    removeDuplicates = kwargs.get('removeDuplicates', True)
+    #intialize output dataframe
+    out = pd.DataFrame()
+    # make the points to search a KD Tree
+    point_tree = cKDTree(np.array([searchPoints.xFRF.to_numpy(), searchPoints.yFRF.to_numpy()]).T)
+    seedArray = np.array([groundTruth['xFRF'].to_numpy(), groundTruth['yFRF'].to_numpy()])
+    for xy in range(seedArray.shape[1]):
+        pointsInRadus = point_tree.data[point_tree.query_ball_point([seedArray[0,xy], seedArray[1, xy]], radius,
+                                                                    return_sorted=True)]
+        if pointsInRadus.size == 0:
+            continue
+        else:
+            # find the closest point in the list with radius
+            closestPointIndex = sb.closestRadialNode((seedArray[0, xy], seedArray[1, xy]), pointsInRadus)
+            #closet point with corresponding x flocation
+            closestPointIndex = np.argmin(np.abs(seedArray[0, xy] - pointsInRadus[:,0]))
+            
+            # find the distance of the point
+            dist = math.dist((seedArray[0,xy], seedArray[1, xy]), pointsInRadus[closestPointIndex])
+            # now log
+            point2Log = searchPoints.query(f'xFRF == {pointsInRadus[closestPointIndex][0]} & yFRF =='
+                                f' {pointsInRadus[closestPointIndex][1]}').copy()
+            point2Log.loc[point2Log.index,'radius'] = dist
+            point2Log.loc[point2Log.index, 'xFRFmatchPoint'] = seedArray[0, xy] # pointsInRadus[closestPointIndex][0]
+            point2Log.loc[point2Log.index, 'yFRFmatchPoint'] = seedArray[1, xy] # pointsInRadus[closestPointIndex][1]
+            out = out.append(point2Log)
+            
+            # print(f'closest point to x: {seedArray[0,xy].astype(float):.2f} y: {seedArray[1, xy].astype(float):.2f} is '
+            #       f'x: {pointsInRadus[closestPointIndex][0].astype(float):.2f} '
+            #       f'y: {pointsInRadus[closestPointIndex][1].astype(float):.2f} '
+            #       f'with distance of {math.dist((seedArray[0,xy], seedArray[1, xy]), pointsInRadus[closestPointIndex]):.2f}')
+            # print(f'           LOG   x: {point2Log["xFRFmatchPoint"].item():.2f} y: '
+            #       f'{point2Log["yFRFmatchPoint"].item():.2f} is x: {point2Log.xFRF.item():.2f} y'
+            #       f': {point2Log.yFRF.item():.2f} with distance of'
+            #       f' {point2Log["radius"].item():.2f}')
+        out.reset_index(inplace=True)
+        if removeDuplicates is True:
+            for i in range(out.shape[0]): #out.index.uniqe():
+                mask = (out['xFRFmatchPoint'].iloc[i] == out['xFRFmatchPoint']) & (out['yFRFmatchPoint'].iloc[i] == out['yFRFmatchPoint'])
+                if mask.sum() > 1:
+                    print(f'duplicate on idx {i}')
+                    dupIdx = np.argwhere(mask.to_numpy()==True).squeeze()
+                    deleteIdx = np.delete(dupIdx, out.iloc[dupIdx]['radius'].argmin())
+                    out.drop(labels=deleteIdx, axis=0)
+                    out['xFRFmatchPoint'].iloc[i], out['yFRFmatchPoint'].iloc[i]
+                    
+            out.reset_index()
+        print('now remove doubles are reset index')
+        
+    return None
+    #
+    # for xy in zip(xGround, yGround):
+    #     idx = sb.closestRadialNode(xy, data)
+    #     spanBtwPoints = math.dist(xy, (bathy['xFRF'].iloc[idx], bathy['yFRF'].iloc[idx]))
+    #     if spanBtwPoints <= searchRadius:
+    #         print('stuff')
+    
 
 def loadAndMergeFiles(path2SingleFile, verbose=True):
     """This function loads all Greensea file types.
@@ -48,7 +123,7 @@ def loadAndMergeFiles(path2SingleFile, verbose=True):
     
     return data
 
-def loadAndMergePriorityFiles(path2SingleFile, verbose=True):
+def loadAndMergePriorityFiles(path2SingleFile, verbose=True, combineDays=True):
     """This function loads all Greensea file types.
     
     function will first go out to find similar csv's with the same time stamp.  then it will correct the GGA geoid
@@ -57,46 +132,72 @@ def loadAndMergePriorityFiles(path2SingleFile, verbose=True):
     
     Args:
         path2SingleFile: a single file (full extension)
-
+        verbose: will print verbose loading information (default=True)
+        combineDays: will look at single file name and find the day, then look for other files in the same day to
+        merge (default=True)
+        
     Returns:
         single data frame with all csv's combined
         
     """
+    listofFiles = ["SPARTON", "OPENINS_NAV_SOLUTION"]
     # first search the path for all files
-    flist = glob.glob(os.path.join(os.path.dirname(path2SingleFile), os.path.basename(path2SingleFile).split(
-            '.')[0] + "*GPS*.csv"))
-    # could loop through below with different key's for specific files interested in loading
-    flist.extend(glob.glob(os.path.join(os.path.dirname(path2SingleFile), os.path.basename(path2SingleFile).split(
-            '.')[0] + "*IMU*.csv")))
-    if len(flist) == 0: return None
-    # then load NAv solution file
-    GPSfname = flist.pop(np.argwhere(["GPS_STAT_2" in f for f in flist]).squeeze())
-    data = loadCorrectEllipsoid(GPSfname, geoidFile='data/g2012bu8.bin', plot=False)
-    for fname in sorted(flist):
-        if verbose: print(f'loading {fname}')
-        tempdf = pd.read_csv(fname, header=4, error_bad_lines=False)
-        
-        # check to make sure my IMU data are good before assigning priority variable names
-        if ('attitude_heading_deg' in tempdf.columns and (tempdf['attitude_heading_deg'] == 0).all()) |  (
-                'attitude_pitch_deg' in tempdf.columns and (tempdf['attitude_pitch_deg'] == 0).all()) |  (
-                   'attitude_roll_deg'  in tempdf.columns and (tempdf['attitude_roll_deg'] == 0).all()):
-            tempdf = tempdf.add_prefix("KVH_")
-            tempdf['UNIX_timestamp'] = tempdf.pop("KVH_UNIX_timestamp")
-            tempdf['IMU_Source'] = 'SPARTON'
-            print(f'    assigned priority to SPARTON. BAD IMU data in {fname}')
-        elif "OPENINS_IMU" in fname:
-            tempdf['IMU_Source'] = 'KVH1750'
-            
-        if "GPS_STAT_1" in fname and "GPS_STAT_2" in path2SingleFile:
-            tempdf = tempdf.add_prefix("GPS1_")
-            tempdf['UNIX_timestamp'] = tempdf.pop("GPS1_UNIX_timestamp")
-        
-        dataOut = interpDataFrames(data.UNIX_timestamp, tempdf, verbose=verbose)
-        data = data.merge(dataOut, how='left', on="UNIX_timestamp")
-        if 'gga_fix_quality' not in data.keys():
-            print(f"ERROR HERE: {fname}")
+    if combineDays is True:
+        dateString = os.path.basename(path2SingleFile).split("_")[0]
+        searchString = os.path.basename(path2SingleFile).split("_telemetry")[-1]
+        allFilesCollectedToday = glob.glob(os.path.join(os.path.dirname(path2SingleFile), f"*{dateString}*{searchString}"))
+    else:
+        allFilesCollectedToday = [path2SingleFile]
     
-    return data
+    # run loop for all files in the day
+    for path2SingleFile in allFilesCollectedToday:
+        # first generate a file list to load all associated files with the GPS 2 file that is priority
+        flist = glob.glob(os.path.join(os.path.dirname(path2SingleFile), os.path.basename(path2SingleFile).split(
+            '.')[0] + "*GPS*.csv"))
+        # could loop through below with different key's for specific files interested in loading
+        for key in listofFiles:
+            flist.extend(glob.glob(os.path.join(os.path.dirname(path2SingleFile), os.path.basename(path2SingleFile).split(
+                '.')[0] + f"*{key}*.csv")))
+        if len(flist) == 0: return None
+        # then load NAv solution file
+        GPSfname = flist.pop(np.argwhere(["GPS_STAT_2" in f for f in flist]).squeeze())
+        data = loadCorrectEllipsoid(GPSfname, geoidFile='data/g2012bu8.bin', plot=False)
+        # sub-loop for support files for inital file
+        for fname in sorted(flist):
+            if verbose: print(f'loading {fname}')
+            tempdf = pd.read_csv(fname, header=4, error_bad_lines=False)
+            
+            if "OPENINS_NAV_SOLUTION" in fname: ## this is primary solution
+              # attitude_0 ==> attitude_roll_deg; attitude_1 ==> attitude_pitch_deg; attitude_2 ==> attitude_heading_deg
+                tempdf=tempdf.add_prefix("NAVSoln_")
+                tempdf['UNIX_timestamp'] = tempdf.pop('NAVSoln_UNIX_timestamp')
+                tempdf['attitude_roll_deg'] = tempdf['NAVSoln_attitude_0']
+                tempdf['attitude_pitch_deg'] = tempdf['NAVSoln_attitude_1']
+                tempdf['attitude_heading_deg'] = tempdf['NAVSoln_attitude_2']
+                
+            elif 'SPARTON_AHRSM2' in fname:
+                tempdf = tempdf.add_prefix("SPARTON_")
+                tempdf['UNIX_timestamp'] = tempdf.pop("SPARTON_UNIX_timestamp")  # need to rename unix time stamp
+
+            elif "GPS_STAT_1" in fname and "GPS_STAT_2" in path2SingleFile:
+                tempdf = tempdf.add_prefix("GPS1_")
+                tempdf['UNIX_timestamp'] = tempdf.pop("GPS1_UNIX_timestamp")
+            
+            dataOut = interpDataFrames(data.UNIX_timestamp, tempdf, verbose=verbose)
+            data = data.merge(dataOut, how='left', on="UNIX_timestamp")
+            if 'gga_fix_quality' not in data.keys():
+                print(f"ERROR HERE: {fname}")
+                
+            
+        if path2SingleFile == allFilesCollectedToday[0]: # if its the first file of the list
+            allDataOut = data
+        else:
+            # allDataOut = allDataOut.append(data, verify_integrity=Flase)
+            allDataOut = pd.concat([allDataOut, data], ignore_index=True, axis=0)
+        # now clean up, sort and reset the index
+        allDataOut.sort_values('UNIX_timestamp', inplace=True, ignore_index=True)
+        allDataOut.reset_index(inplace=True, drop=True)
+    return allDataOut
 
 
 def interpDataFrames(timeStamp2Interp, df, verbose=False): #  = IMUdf , timeStamp2Interp = data['UNIX_timestamp']
@@ -208,16 +309,17 @@ def rotateTranslatePoints(data, offset, **kwargs):
          
     """
     verbose=kwargs.get('verbose', False)
-    data.rename(columns={'xFRF': 'xFRF_orig', 'yFRF': 'yFRF_orig', 'elevation_NAVD88_m': 'elevation_NAVD88_m_orig'},
+    data.rename(columns={'xFRF': 'xFRF_GPS', 'yFRF': 'yFRF_GPS', 'elevation_NAVD88_m': 'elevation_NAVD88_m_GPS'},
                 inplace=True)
     if ('attitude_pitch_deg' not in data.keys()) & ('attitude_roll_deg' not in data.keys()) & ('attitude_heading_deg'
             not in data.keys()):
         print('  NO GOOD IMU Data to rotate/translate GPS values with')
         return None
-    for idx in range(data.shape[0]):
-        x = data['xFRF_orig'].iloc[idx]
-        y = data['yFRF_orig'].iloc[idx]
-        z = data['elevation_NAVD88_m_orig'].iloc[idx]
+    for idx in data.index: #range(data.shape[0]):
+        # print(idx)
+        x = data['xFRF_GPS'].iloc[idx]
+        y = data['yFRF_GPS'].iloc[idx]
+        z = data['elevation_NAVD88_m_GPS'].iloc[idx]
         pitch_i = data['attitude_pitch_deg'].iloc[idx]
         roll_i = data.attitude_roll_deg.iloc[idx]
         yaw_i =  data.attitude_heading_deg.iloc[idx]
@@ -295,7 +397,7 @@ def cleanDF(data, acceptableFix=4):
     data['time'] = pd.to_datetime(data['UNIX_timestamp'], unit='s')
     data = data.query(f'gga_fix_quality == {acceptableFix}')  # some files oddly have this key
     print(f' FOR PAPER: cleaned acceptable RTK fix with {acceptableFix}')
-    
+    data.reset_index(inplace=True, drop=True)  # fixes any index issues
     return data
 
 
@@ -342,7 +444,7 @@ def identifyCrawlerProfileLines(data, angleWindow=25, **kwargs):
         angleWindow: Window over which to consider part of the profile line. the difference from the top two headings (default=25)
     Keyword Args:
         "plot": turn plot  on or off (default=True)
-        'ConsutivePointThresh': threshold for concurrent points that are required to define a line (default=50).
+        'consecutivePointThresh': connect points that are smaller than this and meet other criteria (default=50).
         default value equates to about a 1.5m
         'lineLengthThreshold': minimum length that a profile line can be in points (defaul=75)
         
@@ -351,13 +453,15 @@ def identifyCrawlerProfileLines(data, angleWindow=25, **kwargs):
     """
     plotting=kwargs.get('plot', True)
     fname = kwargs.get('fname', 'ProfileLineCrawler.png')
-    Thresh4ConcurrentLine = kwargs.get('ConsutivePointThresh', 25)   # number of consecutive points required for a line
+    Thresh4ConcurrentLine = kwargs.get('consecutivePointThresh', 40)   # number of consecutive points required for a line
     lineLengthThreshold = kwargs.get('lineLengthThreshold', 150)
     counts, bins, _  = plt.hist(data['attitude_heading_deg'], bins=20)
     plt.close()
     val1, val2 = heapq.nlargest(2, counts)
     angle1 =  bins[np.argwhere(counts==val1).squeeze()]
     angle2 = bins[np.argwhere(counts==val2).squeeze()]
+    assert (angle1 %angle2) > np.diff(bins).mean() and (angle2 %angle1) > np.diff(bins).mean() , \
+                                                   "peak angles are next to each other"
     backAngle = np.max([angle1, angle2])
     outAngle = np.min([angle1, angle2])
     outIdx = (data['attitude_heading_deg'] <= outAngle + angleWindow) & \
@@ -366,13 +470,20 @@ def identifyCrawlerProfileLines(data, angleWindow=25, **kwargs):
             (data['attitude_heading_deg'] >= backAngle - angleWindow)
     totalIdx = outIdx | inIdx  # combining
     peakX, _ = scipy.signal.find_peaks(np.diff(totalIdx))
-    startIdxOfShortWindows = np.argwhere(np.diff(peakX) < Thresh4ConcurrentLine).squeeze()
+    # find start/end of lines (correct start of line index (+1)
+    peakXpos = np.argwhere(np.diff(totalIdx.astype(int)) > 0).squeeze() + 1
+    peakXneg = np.argwhere(np.diff(totalIdx.astype(int)) < 0).squeeze()
+    assert len(peakXneg) == len(peakXpos), 'Error: found more outs than backs!'
+    
+    startIdxOfShortWindows = np.argwhere(peakXpos - peakXneg < Thresh4ConcurrentLine).squeeze()
     if np.ndim(startIdxOfShortWindows) == 0: startIdxOfShortWindows = np.expand_dims(startIdxOfShortWindows, axis=0)
     # take the start of each of the windows, then set the boolean locations to True and delete the location for the
     # ones that are below the
     for idx in startIdxOfShortWindows:
-        corrected = slice(peakX[idx], peakX[idx] + np.diff(peakX)[idx] + 1) #
-        totalIdx[corrected] = True  # these are actually continuing a line
+        # corrected = slice(peakX[idx], peakX[idx] + np.diff(peakX)[idx] + 1) #
+        mySlice = slice(peakXneg[idx], peakXpos[idx])
+        print("    IDprofiles: add logic for turning around")
+        totalIdx[mySlice] = True  # these are actually continuing a line
 
     newPeakX,  _ = scipy.signal.find_peaks(np.diff(totalIdx)) # np.delete(peakX, startIdxOfShortWindows)  # remove the
     newPeakX = np.append(0, newPeakX)
@@ -392,14 +503,15 @@ def identifyCrawlerProfileLines(data, angleWindow=25, **kwargs):
 
     # QA/QC plot
     plt.figure();
+    plt.suptitle(f'LINE ID: lineLengthMin: {Thresh4ConcurrentLine};\nconnect segs shorter than {lineLengthThreshold}')
     plt.subplot(211)
-    plt.scatter(data['xFRF'], data['yFRF'], c=totalIdx)
-    plt.plot(data['xFRF'][peakX], data['yFRF'][peakX], 'rx', label='og peaks', ms=10)
+    plt.scatter(data['xFRF'], data['yFRF'], c=totalIdx, marker='x')
+    # plt.plot(data['xFRF'][peakX], data['yFRF'][peakX], 'rx', label='og peaks', ms=10)
     #plt.plot(data['xFRF'][peakX[startIdxOfShortWindows]], data['yFRF'][peakX[startIdxOfShortWindows]], 'kx', ms=10,
     #          label='peaksRemoved')
     plt.plot(data['xFRF'][newPeakX], data['yFRF'][newPeakX], 'bX', label='newPeaks')
     plt.legend()
-    
+    #
     plt.subplot(212)
     plt.plot(totalIdx)
     plt.plot(peakX,np.ones_like(peakX), 'rx', label='og peaks')
