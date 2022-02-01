@@ -10,7 +10,7 @@ import os
 from testbedutils import sblib as sb
 from scipy.spatial import cKDTree
 
-def searchPointsInRadius(groundTruth, searchPoints, radius=5):
+def searchPointsInRadius(groundTruth, searchPoints, radius=5, **kwargs):
     """
     
     Args:
@@ -37,9 +37,9 @@ def searchPointsInRadius(groundTruth, searchPoints, radius=5):
         if pointsInRadus.size == 0:
             continue
         else:
-            # find the closest point in the list with radius
-            closestPointIndex = sb.closestRadialNode((seedArray[0, xy], seedArray[1, xy]), pointsInRadus)
-            #closet point with corresponding x flocation
+            # find the closest point in the list with radius - all directions
+            # closestPointIndex = sb.closestRadialNode((seedArray[0, xy], seedArray[1, xy]), pointsInRadus)
+            # closet point with corresponding x-location
             closestPointIndex = np.argmin(np.abs(seedArray[0, xy] - pointsInRadus[:,0]))
             
             # find the distance of the point
@@ -60,21 +60,20 @@ def searchPointsInRadius(groundTruth, searchPoints, radius=5):
             #       f'{point2Log["yFRFmatchPoint"].item():.2f} is x: {point2Log.xFRF.item():.2f} y'
             #       f': {point2Log.yFRF.item():.2f} with distance of'
             #       f' {point2Log["radius"].item():.2f}')
-        out.reset_index(inplace=True)
-        if removeDuplicates is True:
-            for i in range(out.shape[0]): #out.index.uniqe():
-                mask = (out['xFRFmatchPoint'].iloc[i] == out['xFRFmatchPoint']) & (out['yFRFmatchPoint'].iloc[i] == out['yFRFmatchPoint'])
-                if mask.sum() > 1:
-                    print(f'duplicate on idx {i}')
-                    dupIdx = np.argwhere(mask.to_numpy()==True).squeeze()
-                    deleteIdx = np.delete(dupIdx, out.iloc[dupIdx]['radius'].argmin())
-                    out.drop(labels=deleteIdx, axis=0)
-                    out['xFRFmatchPoint'].iloc[i], out['yFRFmatchPoint'].iloc[i]
-                    
-            out.reset_index()
-        print('now remove doubles are reset index')
+    out.reset_index(inplace=True)
+    if removeDuplicates is True:
+        for i in range(out.shape[0]): #out.index.uniqe():
+            mask = (out['xFRFmatchPoint'].iloc[i] == out['xFRFmatchPoint']) & (out['yFRFmatchPoint'].iloc[i] == out['yFRFmatchPoint'])
+            if mask.sum() > 1:
+                print(f'duplicate on idx {i}')
+                dupIdx = np.argwhere(mask.to_numpy()==True).squeeze()
+                deleteIdx = np.delete(dupIdx, out.iloc[dupIdx]['radius'].argmin())
+                out.drop(labels=deleteIdx, axis=0)
+                out['xFRFmatchPoint'].iloc[i], out['yFRFmatchPoint'].iloc[i]
+                
+        out.reset_index()
         
-    return None
+    return out
     #
     # for xy in zip(xGround, yGround):
     #     idx = sb.closestRadialNode(xy, data)
