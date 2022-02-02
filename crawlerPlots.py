@@ -193,9 +193,9 @@ def profileCompare(subC, subB, **kwargs):
     ogMS = 2
     crawlerMS = 5
     ### Now do the plot
-    plt.figure()
+    plt.figure(figsize=(12,8))
     plt.suptitle(title)
-    ax1 = plt.subplot(211)
+    ax1 = plt.subplot2grid((2,4), (0,0), colspan=3)  #plt.subplot(211)
     # ax1.plot(subB['xFRF'], subB['elevation'], '.', label='survey - raw')
     # ax1.plot(subC['xFRF'], subC['elevation_NAVD88_m'], 'r.', ms=crawlerMS, label='crawler - raw')
     c = ax1.scatter(newX, crawlInterp, c=totalPitchInterpY, s=25, vmin=-8, vmax=8, label='crawler - interp',
@@ -211,8 +211,8 @@ def profileCompare(subC, subB, **kwargs):
     ax1.set_xlim([xStart-20, xStop+20])
     ax1.set_ylim([subC['elevation_NAVD88_m'].min()-0.5, subC['elevation_NAVD88_m'].max()+0.5])
 
-    ax2 = plt.subplot(223)
-    ax2.scatter(newX, crawlInterpY, c=totalRollInterpY, s=25, label='crawler')
+    ax2 = plt.subplot2grid((2,4), (1,0), colspan=3, sharex=ax1)  #pplt.subplot(223)
+    c2 = ax2.scatter(newX, crawlInterpY, c=totalRollInterpY, s=25, cmap='RdBu', label='crawler')
     ax2.plot(subB['xFRF'], subB['yFRF'], 'k.',ms=surveyMS, label='survey')
     if subC_og is not None:
         ax2.plot(newX, crawlInterpY_og, 'b.', ms=ogMS, label='$crawler_{og}$')
@@ -220,33 +220,34 @@ def profileCompare(subC, subB, **kwargs):
     ax2.set_xlabel('xFRF')
     ax2.set_ylabel('yFRF')
     ax2.legend()
+    cbar = plt.colorbar(c2, ax=ax2)
+    cbar.set_label('Roll')
     
-    ax3 = plt.subplot(224)
-    c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(alongshoreResidual), s=crawlerMS, vmin=0, vmax=7, cmap='bone',
-                    label='Translate/Rotate')
+    ax3 = plt.subplot2grid((2,4), (0, 3), sharey=ax1) # plt.subplot(224)
+    c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(alongshoreResidual), s=crawlerMS, vmin=0, vmax=10,
+                    cmap='inferno', label='Translate/Rotate')
     
     # c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(totalPitchInterpY), vmin=0, vmax=7, cmap='bone')
     ax3.plot([-3, 2], [-3, 2], 'k--')
-    stats = sb.statsBryant(surveyInterp, crawlInterp)
-    ylims = ax3.get_ylim()
-    xlims = ax3.get_xlim()
-    if subC_og is not None:
-        c = ax3.scatter(crawlInterp_og, surveyInterp, c=np.abs(alongshoreResidual), marker='x',s=ogMS, vmin=0, vmax=7, \
-                        cmap='bone', label='crawler_og')
-        # ax3.legend()
-        stats_og = sb.statsBryant(surveyInterp, crawlInterp_og)
-        ax3.text(np.diff(xlims) * .5 + xlims[0], np.diff(ylims) * .33 + ylims[0], f'            OG:\nRMSE:'
-                                                                f' {stats_og["RMSEdemeaned"]:.2f}['
-                                                    f'm]\nbias:{stats_og["bias"]:.2f}[m]')
-    ax3.text(np.diff(xlims) * .33 + xlims[0], np.diff(ylims) * .66 + ylims[0], f"RMSE: {stats['RMSEdemeaned']:.2f}["
-                                                                              f"m]\nbias:{stats['bias']:.2f}[m]")
     ax3.set_xlabel('elevation survey')
     ax3.set_ylabel('elevation crawler')
-    cbar = plt.colorbar(c)
+    cbar = plt.colorbar(c, ax=ax3)
     cbar.set_label('alonshore residual')
     ax3.set_ylim([subC['elevation_NAVD88_m'].min()-0.5, subC['elevation_NAVD88_m'].max()+0.5])
     ax3.set_xlim([subC['elevation_NAVD88_m'].min()-0.5, subC['elevation_NAVD88_m'].max()+0.5])
+    stats = sb.statsBryant(surveyInterp, crawlInterp)
+    
+    ax4 = plt.subplot2grid((2,4), (1,3))
+    ax4.set_axis_off()
+    ax4.text(0, 0.5, f"Profile Statistics:\n\nRMSE: {stats['RMSEdemeaned']:.2f}[m]\nbias:{stats['bias']:.2f}[m]",
+             fontsize=12)
+    if subC_og is not None:
+        c = ax3.scatter(crawlInterp_og, surveyInterp, c=np.abs(alongshoreResidual), marker='x',s=ogMS, vmin=0,
+                        vmax=10, cmap='inferno', label='crawler_og')
+        # ax3.legend()
+        stats_og = sb.statsBryant(surveyInterp, crawlInterp_og)
+        ax4.text(0, 0, f'            OG:\nRMSE: {stats_og["RMSEdemeaned"]:.2f}[m]\nbias:{stats_og["bias"]:.2f}[m]')
 
-    plt.tight_layout(rect=[0.01, 0.01, 0.9, 1])
+    plt.tight_layout(rect=[0.01, 0.01, 0.99, 0.98])
     plt.savefig(saveFname)
     plt.close()
