@@ -63,11 +63,10 @@ print(f"\n\nWorking on {dateString}\n\n")
 
 bathyFiles= sorted(glob.glob('/home/spike/data/FRF/geomorphology/elevationTransects/survey/*.nc'))
 flist = ["/home/spike/data/20211020/20211020_153003.335_telemetry.gssbin_GPS_STAT_2.csv",
-         "/home/spike/data/20211019/20211019_174456.103_telemetry.gssbin_GPS_STAT_2.csv",
-         "/home/spike/data/20211018/20211018_152949.708_telemetry.gssbin_GPS_STAT_2.csv",
-         "/home/spike/data/20210928/20210928_185238.280_telemetry.gssbin_GPS_STAT_2.csv",
+        "/home/spike/data/20211019/20211019_174456.103_telemetry.gssbin_GPS_STAT_2.csv",
+        "/home/spike/data/20211018/20211018_152949.708_telemetry.gssbin_GPS_STAT_2.csv",
+        "/home/spike/data/20210928/20210928_185238.280_telemetry.gssbin_GPS_STAT_2.csv",
          "/home/spike/data/20211005/20211005_192624.153_telemetry.gssbin_GPS_STAT_2.csv",
-         "/home/spike/data/20211122/20211122_200137.386_telemetry.gssbin_GPS_STAT_2.csv",
          "/home/spike/data/20211025/20211025_160206.428_telemetry.gssbin_GPS_STAT_2.csv"]
 
 for fname in flist:
@@ -78,32 +77,45 @@ for fname in flist:
     print(f'RUNNING DAtTE {date}')
     # identify which survey file we're interested in (manually)
     if date in ['20211020']:  #manually derived values
-        idxSurvey = 15
-        lineCount = 12
+        idxSurvey = 15  # 2021-10-19
         lineNumbers = [-60, -18, 24, 76,  130, 172, 225, 268, 309, 357, 404, 458]
         lineAngles = [78, 260]
     elif date in ['20211019']:
+        idxSurvey = 14  # 20211019.nc'
+        lineAngles = [71, 252]
+        lineNumbers = [597, 731, 778, 870]
+        # complicated line numbers: 640, 688, 824, 915, 959, 1000
     elif date in ['20211018']:
+        idxSurvey = 14 # 20211019.nc'
+        lineAngles = [75, 255]
+        lineNumbers = [637]
+        # complicated line numbers:  592, 685
     elif date in ['20211005']:
+        lineNumbers = [639, 453, 413]
+        lineAngles = [72, 249]
+        idxSurvey = 10
     elif date in ['20211025']:
-    elif date in ['20211122']:
+        lineAngles = [75, 256]
+        lineNumbers = [957, 866, 823, 775, 731, 686]
+        # complicated line number: 917
+        idxSurvey = 16
     elif date in ['20210928']:
+        lineNumbers=[558, 639]
+        lineAngles =[81, 255]
+        idxSurvey = 8  # 20210928.nc
+        
     else:
         idxSurvey = np.argmin(abs(np.array([int(f.split('_')[-1].split('.nc')[0]) - int(date) for f in bathyFiles])))
     # load survey data
-    go = getDataFRF.getObs(DT.datetime.strptime(date, "%Y%m%d") - DT.timedelta(days=3),
-                           DT.datetime.strptime(date, "%Y%m%d") + DT.timedelta(days=3))
+    go = getDataFRF.getObs(DT.datetime.strptime(date, "%Y%m%d") - DT.timedelta(days=6),
+                           DT.datetime.strptime(date, "%Y%m%d") + DT.timedelta(days=6))
     
     bathy = go.getBathyTransectFromNC(fname=bathyFiles[idxSurvey], forceReturnAll=True)
-
     countsHeading, binsHeading, _  = plt.hist(crwl['attitude_heading_deg'], bins=50)
     val1, val2 = heapq.nlargest(2, countsHeading)
     countsY, binsY, _ = plt.hist(crwl['yFRF'], bins=50)
 
-
-
     plotFnme = fname.split('_')[0] + "_Comparison_in_XY_withBathy.png"
-    crawlerPlots.bathyPlanViewComparison(plotFnme, crwl, bathy=bathy, topo=None, lineNumbers=lineNumbers)
-    # lineNumbers = heapq.nlargest(lineCount, countsY)
+    crawlerPlots.bathyPlanViewComparison(plotFnme, crwl, bathy=bathy, topo=None, lineNumbers=lineNumbers, plotShow=False)
     
 
