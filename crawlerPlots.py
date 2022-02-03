@@ -35,7 +35,7 @@ def bathyEnvalopeComparison(fname, data, bathy):
     plt.savefig(fname2)
     plt.close()
 
-def bathyPlanViewComparison(fname, data, bathy, topo):
+def bathyPlanViewComparison(fname, data, bathy, topo, **kwargs):
     """
     
     Args:
@@ -47,11 +47,14 @@ def bathyPlanViewComparison(fname, data, bathy, topo):
     Returns:
 
     """
+    lineNumbers = kwargs.get('lineNumbers', None)
+    plotShow = kwargs.get('plotShow', False)
     topoString, surveyString = None, None
+    
     if np.size(data) > 0:
-        plt.figure()
+        plt.figure(figsize=(8,6))
         if bathy is not None:
-            plt.scatter(bathy['xFRF'], bathy['yFRF'], c=bathy['elevation'], vmin=-2, vmax=2, label='survey')
+            a = plt.scatter(bathy['xFRF'], bathy['yFRF'], c=bathy['elevation'], vmin=-2, vmax=2, label='survey')
             surveyString = f"Survey: {bathy['time'][0].date()}"
         if topo is not None:
             plt.pcolormesh(topo['xFRF'], topo['yFRF'], np.mean(topo['elevation'], axis=0), vmin=-2, vmax=2,
@@ -62,16 +65,26 @@ def bathyPlanViewComparison(fname, data, bathy, topo):
             cbar.set_label('elevation NAVD88')
         plt.xlabel('xFRF')
         plt.ylabel('yFRF')
-        
+        plt.colorbar(a)
         plt.title(f'crawler comparison crawler Date '
                   f'{data.time.iloc[0].to_pydatetime().strftime("%Y-%m-%dT%H:%M:%SZ")}\n{surveyString} + {topoString}')
+        plt.plot(data.xFRF, data.yFRF, '.k', ms=3, label='crawler')
+        plt.plot(np.ones_like(lineNumbers)*80, lineNumbers, 'rX',ms=10, label='Identified Profiles')
         plt.legend()
-        # plt.xlim([30, 300])
-        # plt.ylim([720, 745])
-        plt.plot(data.xFRF, data.yFRF, 'xk', ms=10, label='crawler')
+        ySpan_c = data['yFRF'].max() - data['yFRF'].min()
+        ySpan_b = bathy['yFRF'].max() - bathy['yFRF'].min()
+        ySpan = np.argmin([ySpan_c, ySpan_b])
+        if ySpan == 0:
+            plt.ylim([data['yFRF'].min(), data['yFRF'].max()])
+        else:
+            plt.ylim([bathy['yFRF'].min(), bathy['yFRF'].max()])
+        plt.plot()
+        plt.xlim([30, 300])
         
+        plt.tight_layout()
         plt.savefig(fname)
-        plt.close()
+        if plotShow is False:
+            plt.close()
     else:
         print(f"no plot for fname")
     
@@ -159,12 +172,13 @@ def profileCompare(subC, subB, **kwargs):
         statistics dictionary for comparison
 
     """
+    rawCrawler = kwargs.get('rawCrawler', None)
     profileNumber = np.unique(subB['profileNumber']).squeeze()
     date = subB['time'].iloc[0].date().strftime("%Y-%m-%d")
     crawlDate = subC['time'].iloc[0].date().strftime("%Y-%m-%d")
     subC_og = kwargs.get('subC_og', None)
     saveFname = kwargs.get('fname', f'SingleProfileCompare_{crawlDate}_{profileNumber}.png')
-    
+    plotRaws = kwargs.get('plotRaws', True)
     #plot/data bounds
     xStart = max(subC['xFRF'].min(), subB['xFRF'].min())
     xStop = min(max(subC['xFRF']), max(subB['xFRF']))
@@ -192,14 +206,16 @@ def profileCompare(subC, subB, **kwargs):
     surveyMS = 1
     ogMS = 2
     crawlerMS = 5
+    yWindow = 15
     ### Now do the plot
     plt.figure(figsize=(12,8))
     plt.suptitle(title)
     ax1 = plt.subplot2grid((2,4), (0,0), colspan=3)  #plt.subplot(211)
-    # ax1.plot(subB['xFRF'], subB['elevation'], '.', label='survey - raw')
-    # ax1.plot(subC['xFRF'], subC['elevation_NAVD88_m'], 'r.', ms=crawlerMS, label='crawler - raw')
+    if plotRaws is True:
+        #ax1.plot(subB['xFRF'], subB['elevation'], '.', label='survey - raw')
+        ax1.plot(subC['xFRF'], subC['elevation_NAVD88_m'], 'kx', ms=surveyMS, label='Crawler - Raw')
     c = ax1.scatter(newX, crawlInterp, c=totalPitchInterpY, s=25, vmin=-8, vmax=8, label='crawler - interp',
-                    cmap='RdBu')
+                    cmap='Spectral')
     if subC_og is not None:
         ax1.plot(newX, crawlInterp_og, 'b.', ms=ogMS, label='$crawler_{og}$')
     ax1.plot(newX, surveyInterp, 'k.', ms=surveyMS, label='survey-interp')
@@ -212,13 +228,20 @@ def profileCompare(subC, subB, **kwargs):
     ax1.set_ylim([subC['elevation_NAVD88_m'].min()-0.5, subC['elevation_NAVD88_m'].max()+0.5])
 
     ax2 = plt.subplot2grid((2,4), (1,0), colspan=3, sharex=ax1)  #pplt.subplot(223)
-    c2 = ax2.scatter(newX, crawlInterpY, c=totalRollInterpY, s=25, cmap='RdBu', label='crawler')
     ax2.plot(subB['xFRF'], subB['yFRF'], 'k.',ms=surveyMS, label='survey')
-    if subC_og is not None:
-        ax2.plot(newX, crawlInterpY_og, 'b.', ms=ogMS, label='$crawler_{og}$')
+    if plotRaws is True:
+        ax2.plot(subC['xFRF'], subC['yFRF'], 'kx', ms=surveyMS, label='Crawler - Raw')
+        if subC_og is not None:
+            ax2.plot(subC_og['xFRF'], subC_og['yFRF'], 'dC2', ms=surveyMS, label='OG_Raw')
+        if rawCrawler is not None:
+            ax2.plot(rawCrawler['xFRF'], rawCrawler['yFRF'], 'Xb', ms=ogMS, label='RAW GPS')
+    c2 = ax2.scatter(newX, crawlInterpY, c=totalRollInterpY, s=25,vmin=-5, vmax=5, cmap='Spectral', label='crawler')
+    # if subC_og is not None:
+        # ax2.plot(newX, crawlInterpY_og, 'b.', ms=ogMS, label='$crawler_{og}$')
     ax2.set_xlim([xStart-5, xStop+5])
     ax2.set_xlabel('xFRF')
     ax2.set_ylabel('yFRF')
+    ax2.set_ylim([subB['profileNumber'].mean() - yWindow, subB['profileNumber'].mean() + yWindow])
     ax2.legend()
     cbar = plt.colorbar(c2, ax=ax2)
     cbar.set_label('Roll')
