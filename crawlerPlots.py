@@ -179,31 +179,54 @@ def profileCompare(subC, subB, **kwargs):
     crawlDate = subC['time'].iloc[0].date().strftime("%Y-%m-%d")
     subC_og = kwargs.get('subC_og', None)
     saveFname = kwargs.get('fname', f'SingleProfileCompare_{crawlDate}_{profileNumber}.png')
-    plotRaws = kwargs.get('plotRaws', True)
+    plotRaws = kwargs.get('plotRaws', False)
+    # first sort things (make sure we're not sorted in time)
+    subC = subC.sort_values(by='xFRF', ignore_index=True)#, inplace=True)
+    subB = subB.sort_values(by='xFRF', ignore_index=True)# , inplace=True)
     #plot/data bounds
-    xStart = max(subC['xFRF'].min(), subB['xFRF'].min())
-    xStop = min(max(subC['xFRF']), max(subB['xFRF']))
+    xStart = np.ceil(max(subC['xFRF'].min(), subB['xFRF'].min()))
+    xStop = np.floor(min(max(subC['xFRF']), max(subB['xFRF'])))
 
     title = f"Comparison with Suvey {date} and\ncrawl date {crawlDate} of profile number {profileNumber}"
     ############ now work through the interpolation  #####
     dx =  0.6       #np.min(np.diff(subB['xFRF'].squeeze()).mean(), np.median(np.diff(subC['xFRF'])) )
-    newX = np.linspace(xStart, xStop, np.round((xStop-xStart)/dx).astype(int))
-    crawlInterp = np.interp(newX, subC.sort_values(by='xFRF')['xFRF'], subC.sort_values(by='xFRF')['elevation_NAVD88_m'])
-    surveyInterp = np.interp(newX, subB.sort_values(by='xFRF')['xFRF'], subB.sort_values(by='xFRF')['elevation'])
-    crawlInterpY = np.interp(newX, subC.sort_values(by='xFRF')['xFRF'], subC.sort_values(by='xFRF')['yFRF'])
-    surveyInterpY = np.interp(newX, subB.sort_values(by='xFRF')['xFRF'], subB.sort_values(by='xFRF')['yFRF'])
-    
+    newX = np.linspace(xStart, xStop, np.round((xStop-xStart)/dx).astype(int), endpoint=True)
+    crawlInterp = np.interp(newX, subC['xFRF'], subC['elevation_NAVD88_m'])
+    surveyInterp = np.interp(newX, subB['xFRF'], subB['elevation'])
+    crawlInterpY = np.interp(newX, subC['xFRF'], subC['yFRF'])
+    surveyInterpY = np.interp(newX, subB['xFRF'], subB['yFRF'])
+    totalPitchInterpX = np.interp(newX, subC['xFRF'], subC.attitude_pitch_deg)
+    totalRollInterpY = np.interp(newX, subC['xFRF'], subC.attitude_roll_deg)
     alongshoreResidual = crawlInterpY - surveyInterpY
-    totalPitchInterpY = np.interp(newX, subC.sort_values(by='xFRF')['xFRF'], subC.sort_values(by='xFRF').attitude_pitch_deg)
-    totalRollInterpY = np.interp(newX, subC.sort_values(by='xFRF')['xFRF'], subC.sort_values(
-            by='xFRF').attitude_roll_deg)
 
     if subC_og is not None:
         crawlInterpY_og = np.interp(newX, subC_og.sort_values(by='xFRF')['xFRF'], subC_og.sort_values(by='xFRF')[
             'yFRF'])
         crawlInterp_og = np.interp(newX, subC_og.sort_values(by='xFRF')['xFRF'], subC_og.sort_values(by='xFRF')[
             'elevation_NAVD88_m'])
-    
+
+    # remove flatlined interpolation points here (points with no source data)
+    idxDataJump = np.diff(subC.sort_values(by='xFRF')['xFRF']) > 3  # distances above 3m w/o cralwer source data
+    for idx in np.argwhere(idxDataJump):
+        idx = int(idx)
+        jumpDist = np.diff(subC['xFRF'])[idx]  # dist of the interp w/o data in cellCount
+        # idx2Remove = np.linspace(idx-1, idx+np.ceil(jumpDist/dx), np.floor(jumpDist/dx).astype(int),
+        #                         endpoint=True).astype(int)
+        # loc2Remove = subC['xFRF'][idx2Remove]
+        idxRemove = (subC['xFRF'][idx] + jumpDist > newX) & (subC['xFRF'][idx] < newX)  # remove indices from below
+        # remove those points from interped arrays of interest
+        newX = np.delete(newX, idxRemove)
+        crawlInterp = np.delete(crawlInterp, idxRemove)
+        surveyInterp = np.delete(surveyInterp, idxRemove)
+        crawlInterpY = np.delete(crawlInterpY, idxRemove)
+        surveyInterpY = np.delete(surveyInterpY, idxRemove)
+        totalPitchInterpX = np.delete(totalPitchInterpX, idxRemove)
+        totalRollInterpY = np.delete(totalRollInterpY, idxRemove)
+        alongshoreResidual = crawlInterpY - surveyInterpY  #
+    # calculate stats
+    stats = sb.statsBryant(surveyInterp, crawlInterp)
+
+    ####################################################
     surveyMS = 1
     ogMS = 2
     crawlerMS = 5
@@ -215,7 +238,7 @@ def profileCompare(subC, subB, **kwargs):
     if plotRaws is True:
         #ax1.plot(subB['xFRF'], subB['elevation'], '.', label='survey - raw')
         ax1.plot(subC['xFRF'], subC['elevation_NAVD88_m'], 'kx', ms=surveyMS, label='Crawler - Raw')
-    c = ax1.scatter(newX, crawlInterp, c=totalPitchInterpY, s=25, vmin=-8, vmax=8, label='crawler - interp',
+    c = ax1.scatter(newX, crawlInterp, c=totalPitchInterpX, s=25, vmin=-8, vmax=8, label='crawler - interp',
                     cmap='Spectral')
     if subC_og is not None:
         ax1.plot(newX, crawlInterp_og, 'b.', ms=ogMS, label='$crawler_{og}$')
@@ -251,7 +274,7 @@ def profileCompare(subC, subB, **kwargs):
     c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(alongshoreResidual), s=crawlerMS, vmin=0, vmax=10,
                     cmap='inferno', label='Translate/Rotate')
     
-    # c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(totalPitchInterpY), vmin=0, vmax=7, cmap='bone')
+    # c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(totalPitchInterpX), vmin=0, vmax=7, cmap='bone')
     ax3.plot([-3, 2], [-3, 2], 'k--')
     ax3.set_xlabel('elevation survey')
     ax3.set_ylabel('elevation crawler')
@@ -259,7 +282,6 @@ def profileCompare(subC, subB, **kwargs):
     cbar.set_label('alonshore residual')
     ax3.set_ylim([subC['elevation_NAVD88_m'].min()-0.5, subC['elevation_NAVD88_m'].max()+0.5])
     ax3.set_xlim([subC['elevation_NAVD88_m'].min()-0.5, subC['elevation_NAVD88_m'].max()+0.5])
-    stats = sb.statsBryant(surveyInterp, crawlInterp)
     
     ax4 = plt.subplot2grid((2,4), (1,3))
     ax4.set_axis_off()
@@ -275,3 +297,4 @@ def profileCompare(subC, subB, **kwargs):
     plt.tight_layout(rect=[0.01, 0.01, 0.99, 0.98])
     plt.savefig(saveFname)
     plt.close()
+    return stats, newX, surveyInterp, crawlInterp
