@@ -69,7 +69,8 @@ def bathyPlanViewComparison(fname, data, bathy, topo, **kwargs):
         plt.title(f'crawler comparison crawler Date '
                   f'{data.time.iloc[0].to_pydatetime().strftime("%Y-%m-%dT%H:%M:%SZ")}\n{surveyString} + {topoString}')
         plt.plot(data.xFRF, data.yFRF, '.k', ms=3, label='crawler')
-        plt.plot(np.ones_like(lineNumbers)*80, lineNumbers, 'rX',ms=10, label='Identified Profiles')
+        if lineNumbers is not None:
+            plt.plot(np.ones_like(lineNumbers)*80, lineNumbers, 'rX',ms=10, label='Identified Profiles')
         plt.legend()
         ySpan_c = data['yFRF'].max() - data['yFRF'].min()
         ySpan_b = bathy['yFRF'].max() - bathy['yFRF'].min()

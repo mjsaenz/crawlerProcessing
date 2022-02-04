@@ -26,11 +26,17 @@ def searchPointsInRadius(groundTruth, searchPoints, radius=5, **kwargs):
     Returns:
 
     """
+    onlylinePoints = kwargs.get('searchOnlyLinePoints', False)
     removeDuplicates = kwargs.get('removeDuplicates', True)
     #intialize output dataframe
     out = pd.DataFrame()
     # make the points to search a KD Tree
-    point_tree = cKDTree(np.array([searchPoints.xFRF.to_numpy(), searchPoints.yFRF.to_numpy()]).T)
+    if onlylinePoints:
+        
+        point_tree = cKDTree(np.array([searchPoints['xFRF'][(searchPoints['profileNumber'] !=0)].to_numpy(), \
+                                       searchPoints['yFRF'][(searchPoints['profileNumber'] !=0)].to_numpy()]).T)
+    else:
+        point_tree = cKDTree(np.array([searchPoints['xFRF'].to_numpy(), searchPoints['yFRF'].to_numpy()]).T)
     seedArray = np.array([groundTruth['xFRF'].to_numpy(), groundTruth['yFRF'].to_numpy()])
     for xy in range(seedArray.shape[1]):
         pointsInRadus = point_tree.data[point_tree.query_ball_point([seedArray[0,xy], seedArray[1, xy]], radius,
@@ -82,7 +88,6 @@ def searchPointsInRadius(groundTruth, searchPoints, radius=5, **kwargs):
     #     if spanBtwPoints <= searchRadius:
     #         print('stuff')
     
-
 def loadAndMergeFiles(path2SingleFile, verbose=True):
     """This function loads all Greensea file types.
     
@@ -447,86 +452,112 @@ def identifyCrawlerProfileLines(data, angleWindow=25, **kwargs):
         'consecutivePointThresh': connect points that are smaller than this and meet other criteria (default=50).
         default value equates to about a 1.5m
         'lineLengthThreshold': minimum length that a profile line can be in points (defaul=75)
+        "lineNumbers": pre=assign line numbers to look at
+        "alongshoreSearchWindow": used in combination with line Numbers for finding matching points.
         
     Returns
         data frame
     """
     plotting=kwargs.get('plot', True)
     fname = kwargs.get('fname', 'ProfileLineCrawler.png')
+    lineNumbers = kwargs.get("lineNumbers", None)
+    lineAngles = kwargs.get('lineAngles', None)
     Thresh4ConcurrentLine = kwargs.get('consecutivePointThresh', 40)   # number of consecutive points required for a line
     lineLengthThreshold = kwargs.get('lineLengthThreshold', 150)
-    counts, bins, _  = plt.hist(data['attitude_heading_deg'], bins=20)
-    plt.close()
-    val1, val2 = heapq.nlargest(2, counts)
-    angle1 =  bins[np.argwhere(counts==val1).squeeze()]
-    angle2 = bins[np.argwhere(counts==val2).squeeze()]
-    assert (angle1 %angle2) > np.diff(bins).mean() and (angle2 %angle1) > np.diff(bins).mean() , \
-                                                   "peak angles are next to each other"
-    backAngle = np.max([angle1, angle2])
-    outAngle = np.min([angle1, angle2])
-    outIdx = (data['attitude_heading_deg'] <= outAngle + angleWindow) & \
-             (data['attitude_heading_deg'] >= outAngle - angleWindow)
-    inIdx = (data['attitude_heading_deg'] <= backAngle + angleWindow)  & \
-            (data['attitude_heading_deg'] >= backAngle - angleWindow)
-    totalIdx = outIdx | inIdx  # combining
-    peakX, _ = scipy.signal.find_peaks(np.diff(totalIdx))
-    # find start/end of lines (correct start of line index (+1)
-    peakXpos = np.argwhere(np.diff(totalIdx.astype(int)) > 0).squeeze() + 1
-    peakXneg = np.argwhere(np.diff(totalIdx.astype(int)) < 0).squeeze()
-    assert len(peakXneg) == len(peakXpos), 'Error: found more outs than backs!'
+    alongshoreWin = kwargs.get("alongshoreSearchWindow", 5)
+    if lineAngles is None:  # we're not given direct input
+        counts, bins, _  = plt.hist(data['attitude_heading_deg'], bins=20)
+        plt.close()
+        val1, val2 = heapq.nlargest(2, counts)
+        angle1 =  bins[np.argwhere(counts==val1).squeeze()]
+        angle2 = bins[np.argwhere(counts==val2).squeeze()]
+        assert (angle1 %angle2) > np.diff(bins).mean() and (angle2 %angle1) > np.diff(bins).mean() , \
+            "peak angles are next to each other"
+    else:
+        angle1, angle2= lineAngles
+    if lineNumbers is not None:
+        totalIdx =  data['yFRF'] == 20000000 # some totally impossible scenario to initalize a df
+        
+        for line in lineNumbers:
+            mask = (data['yFRF'] > (line - alongshoreWin)) & (data['yFRF'] < (line+alongshoreWin))
+            maskDir1 = (data['attitude_heading_deg'] > angle1 - angleWindow) & (data['attitude_heading_deg'] < angle1
+                                                                               + angleWindow)
+            maskDir2 = (data['attitude_heading_deg'] > angle2 - angleWindow) & (data['attitude_heading_deg'] < angle2
+                                                                                + angleWindow)
+            totalMask = mask & (maskDir1 | maskDir2)
+            if plotting: plt.plot(data['xFRF'][totalMask], data['yFRF'][totalMask], '.')
+            totalIdx[mask] = line
+        
+        if plotting:
+            plt.plot(data['xFRF'], data['yFRF'], 'k.', ms=1)
+            plt.savefig(os.path.dirname(fname) + '/profileLineID.png'); plt.close()
+    else:
+        backAngle = np.max([angle1, angle2])
+        outAngle = np.min([angle1, angle2])
+        outIdx = (data['attitude_heading_deg'] <= outAngle + angleWindow) & \
+                 (data['attitude_heading_deg'] >= outAngle - angleWindow)
+        inIdx = (data['attitude_heading_deg'] <= backAngle + angleWindow)  & \
+                (data['attitude_heading_deg'] >= backAngle - angleWindow)
+        totalIdx = outIdx | inIdx  # combining
+        peakX, _ = scipy.signal.find_peaks(np.diff(totalIdx))
+        # find start/end of lines (correct start of line index (+1)
+        peakXpos = np.argwhere(np.diff(totalIdx.astype(int)) > 0).squeeze() + 1
+        peakXneg = np.argwhere(np.diff(totalIdx.astype(int)) < 0).squeeze()
+        assert len(peakXneg) == len(peakXpos), 'Error: found more outs than backs!'
+        
+        startIdxOfShortWindows = np.argwhere(peakXpos - peakXneg < Thresh4ConcurrentLine).squeeze()
+        if np.ndim(startIdxOfShortWindows) == 0: startIdxOfShortWindows = np.expand_dims(startIdxOfShortWindows, axis=0)
+        # take the start of each of the windows, then set the boolean locations to True and delete the location for the
+        # ones that are below the
+        for idx in startIdxOfShortWindows:
+            # corrected = slice(peakX[idx], peakX[idx] + np.diff(peakX)[idx] + 1) #
+            mySlice = slice(peakXneg[idx], peakXpos[idx])
+            print("    IDprofiles: add logic for turning around")
+            totalIdx[mySlice] = True  # these are actually continuing a line
     
-    startIdxOfShortWindows = np.argwhere(peakXpos - peakXneg < Thresh4ConcurrentLine).squeeze()
-    if np.ndim(startIdxOfShortWindows) == 0: startIdxOfShortWindows = np.expand_dims(startIdxOfShortWindows, axis=0)
-    # take the start of each of the windows, then set the boolean locations to True and delete the location for the
-    # ones that are below the
-    for idx in startIdxOfShortWindows:
-        # corrected = slice(peakX[idx], peakX[idx] + np.diff(peakX)[idx] + 1) #
-        mySlice = slice(peakXneg[idx], peakXpos[idx])
-        print("    IDprofiles: add logic for turning around")
-        totalIdx[mySlice] = True  # these are actually continuing a line
+        newPeakX,  _ = scipy.signal.find_peaks(np.diff(totalIdx)) # np.delete(peakX, startIdxOfShortWindows)  # remove the
+        newPeakX = np.append(0, newPeakX)
+        # corrected points from the line start array
+        for pp, peak in enumerate(newPeakX):
+            if pp == len(newPeakX)-1:
+                endSeg = len(totalIdx)
+            else:
+                endSeg = newPeakX[pp+1]
+            #if totalIdx[newPeakX[ppprint(endSeg-peak)
+            if (endSeg - peak < lineLengthThreshold) & (totalIdx[newPeakX[pp]] == False):
+                totalIdx[peak: endSeg+1] = False
+        
+        # now remove weirdly short profile line segments that are true
+        newPeakX,  _ = scipy.signal.find_peaks(np.diff(totalIdx)) # np.delete(peakX, startIdxOfShortWindows)  # remove the
+        # QA/QC plot
+        # plt.figure();
+        # plt.suptitle(f'LINE ID: lineLengthMin: {Thresh4ConcurrentLine};\nconnect segs shorter than {lineLengthThreshold}')
+        # plt.subplot(211)
+        # plt.scatter(data['xFRF'], data['yFRF'], c=totalIdx, marker='x')
+        # # plt.plot(data['xFRF'][peakX], data['yFRF'][peakX], 'rx', label='og peaks', ms=10)
+        # #plt.plot(data['xFRF'][peakX[startIdxOfShortWindows]], data['yFRF'][peakX[startIdxOfShortWindows]], 'kx', ms=10,
+        # #          label='peaksRemoved')
+        # plt.plot(data['xFRF'][newPeakX], data['yFRF'][newPeakX], 'bX', label='newPeaks')
+        # plt.legend()
+        # #
+        # plt.subplot(212)
+        # plt.plot(totalIdx)
+        # plt.plot(peakX,np.ones_like(peakX), 'rx', label='og peaks')
+        # plt.plot(newPeakX, np.ones_like(newPeakX), 'bx', label='newPeaks')
+        # plt.legend()
 
-    newPeakX,  _ = scipy.signal.find_peaks(np.diff(totalIdx)) # np.delete(peakX, startIdxOfShortWindows)  # remove the
-    newPeakX = np.append(0, newPeakX)
-    # corrected points from the line start array
-    for pp, peak in enumerate(newPeakX):
-        if pp == len(newPeakX)-1:
-            endSeg = len(totalIdx)
-        else:
-            endSeg = newPeakX[pp+1]
-        #if totalIdx[newPeakX[ppprint(endSeg-peak)
-        if (endSeg - peak < lineLengthThreshold) & (totalIdx[newPeakX[pp]] == False):
-            totalIdx[peak: endSeg+1] = False
-    
-    # now remove weirdly short profile line segments that are true
-    newPeakX,  _ = scipy.signal.find_peaks(np.diff(totalIdx)) # np.delete(peakX, startIdxOfShortWindows)  # remove the
+        newPeakX = np.append(0, newPeakX)
+        # now find the median y-position and assign that as the line number
+        for idx, peak in enumerate(newPeakX):
+            if idx == len(newPeakX)-1:
+                mySlice = slice(newPeakX[idx], len(data))
+            else:
+                mySlice = slice(newPeakX[idx]+1, newPeakX[idx+1])
+            if data['profileNumber'][mySlice].all() == True:
+                data.loc[mySlice, 'profileNumber'] = np.median(data['yFRF'][mySlice]).astype(int)
+
+
     data['profileNumber'] = totalIdx
-
-    # QA/QC plot
-    plt.figure();
-    plt.suptitle(f'LINE ID: lineLengthMin: {Thresh4ConcurrentLine};\nconnect segs shorter than {lineLengthThreshold}')
-    plt.subplot(211)
-    plt.scatter(data['xFRF'], data['yFRF'], c=totalIdx, marker='x')
-    # plt.plot(data['xFRF'][peakX], data['yFRF'][peakX], 'rx', label='og peaks', ms=10)
-    #plt.plot(data['xFRF'][peakX[startIdxOfShortWindows]], data['yFRF'][peakX[startIdxOfShortWindows]], 'kx', ms=10,
-    #          label='peaksRemoved')
-    plt.plot(data['xFRF'][newPeakX], data['yFRF'][newPeakX], 'bX', label='newPeaks')
-    plt.legend()
-    #
-    plt.subplot(212)
-    plt.plot(totalIdx)
-    plt.plot(peakX,np.ones_like(peakX), 'rx', label='og peaks')
-    plt.plot(newPeakX, np.ones_like(newPeakX), 'bx', label='newPeaks')
-    plt.legend()
-
-    newPeakX = np.append(0, newPeakX)
-    # now find the median y-position and assign that as the line number
-    for idx, peak in enumerate(newPeakX):
-        if idx == len(newPeakX)-1:
-            mySlice = slice(newPeakX[idx], len(data))
-        else:
-            mySlice = slice(newPeakX[idx]+1, newPeakX[idx+1])
-        if data['profileNumber'][mySlice].all() == True:
-            data.loc[mySlice, 'profileNumber'] = np.median(data['yFRF'][mySlice]).astype(int)
     
     if plotting is True:
         data['profileNumber'].unique()
