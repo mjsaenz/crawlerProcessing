@@ -1,10 +1,9 @@
-""" This code is just a general development script for doing a single day/profile comparison"""
+""" This code analyses a single profile repetedly for the DUNEX time period.  Specficially will outouut a tuple with
+statistics/residuals for multiple comparisons  and plots comparing the single profiles. """
 import math
 import sys, os
-
 import matplotlib.pyplot as plt
 import numpy as np
-
 import crawlerPlots
 from testbedutils import geoprocess as gp
 sys.path.append('/home/spike/repos')
@@ -42,8 +41,7 @@ GPSfname = "/home/spike/data/20211005/20211005_192624.153_telemetry.gssbin_GPS_S
 GPSfname = "/home/spike/data/20211025/20211025_160206.428_telemetry.gssbin_GPS_STAT_2.csv"  # 0.76
 GPSfname =  "/home/spike/data/20211018/20211018_152949.708_telemetry.gssbin_GPS_STAT_2.csv" # 1.22
 GPSfname = "/home/spike/data/20211020/20211020_153003.335_telemetry.gssbin_GPS_STAT_2.csv"  # 0.74
-flist= ["/home/spike/data/20210928/20210928_185238.280_telemetry.gssbin_GPS_STAT_2.csv",
-        "/home/spike/data/20211005/20211005_192624.153_telemetry.gssbin_GPS_STAT_2.csv",
+flist= ["/home/spike/data/20211005/20211005_192624.153_telemetry.gssbin_GPS_STAT_2.csv",
         "/home/spike/data/20211018/20211018_152949.708_telemetry.gssbin_GPS_STAT_2.csv",
         "/home/spike/data/20211019/20211019_174456.103_telemetry.gssbin_GPS_STAT_2.csv",
         "/home/spike/data/20211020/20211020_153003.335_telemetry.gssbin_GPS_STAT_2.csv",
@@ -189,9 +187,9 @@ for GPSfname in flist:
             fOut = os.path.join(savePath, f"singleProfile_{subC['time'].iloc[0].strftime('%Y_%m_%d')}"
                                           f"_{profile.astype(int):04}")
             print(f'    makingFile comparison  {fOut}')
-            stats, newX, surveyInterp, crawlInterp = crawlerPlots.profileCompare(subC=subC, subB=subB, fname=fOut,
-                                                                       plotRaws=True)# subC_og=subC_og)
-            logStats.append((GPSfname.split('/')[4], profile, stats, newX, surveyInterp, crawlInterp))
+            stats, newX, surveyInterp, crawlInterp, pitch, roll = crawlerPlots.profileCompare(subC=subC, subB=subB,
+                                                            fname=fOut, plotRaws=True)# subC_og=subC_og)
+            logStats.append((GPSfname.split('/')[4], profile, stats, newX, surveyInterp, crawlInterp, pitch, roll))
         else:
             print(f'No crawler data for survey {profile}')
     

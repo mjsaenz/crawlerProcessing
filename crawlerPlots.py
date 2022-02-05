@@ -297,4 +297,4 @@ def profileCompare(subC, subB, **kwargs):
     plt.tight_layout(rect=[0.01, 0.01, 0.99, 0.98])
     plt.savefig(saveFname)
     plt.close()
-    return stats, newX, surveyInterp, crawlInterp
+    return stats, newX, surveyInterp, crawlInterp, totalPitchInterpX, totalRollInterpY
