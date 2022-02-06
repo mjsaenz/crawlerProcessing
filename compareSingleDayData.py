@@ -49,6 +49,7 @@ flist= ["/home/spike/data/20211005/20211005_192624.153_telemetry.gssbin_GPS_STAT
 
 logStats = []
 for GPSfname in flist:
+    
     ########################################################################
     # figure out start/end times gather background data
     start = DT.datetime.strptime(os.path.dirname(GPSfname).split('/')[-1], "%Y%m%d")
@@ -144,6 +145,9 @@ for GPSfname in flist:
     ###############################################
     ## first load file and correct elipsoid values
     data = crawlerTools.loadAndMergePriorityFiles(GPSfname, verbose=False, combineDays=True)
+    #plt.figure(); plt.hist(data['attitude_roll_deg'], bins=200); plt.title(f'roll {start}'); plt.show()
+    plt.figure(); plt.hist(data['attitude_pitch_deg'], bins=200); plt.title(f'pitch {start}'); plt.show()
+    plt.show()
     # rawCrawler = data.copy()
     # rawCrawler = crawlerTools.convert2FRF(rawCrawler)
     data = crawlerTools.convert2FRF(data)

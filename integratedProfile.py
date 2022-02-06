@@ -90,54 +90,73 @@ data = crawlerTools.identifyCrawlerProfileLines(data, angleWindow=25, lineLength
                                                 lineWindow=lineWindow)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 idx = data['profileNumber'] == 731
-time = data['time'][idx]
-pitch = np.deg2rad(data['attitude_pitch_deg'][idx])
-yaw = np.deg2rad(data['attitude_pitch_deg'][idx])
-speed = data['NAVSoln_speed_over_ground'][idx]
-xFRF = data['xFRF'][idx]
-yFRF = data['yFRF'][idx]
-pressure = data['NAVSoln_depth'][idx]
-elevationNAVD88 = data['elevation_NAVD88_m'][idx]
-print("using crawler as trugh (not survey)")
-timeStep = np.diff(time)
-distOverGround, delev, dforward, dlateral = [], [], [], []
-bias = 0.04411434 #
-for i in range(timeStep.shape[0]):
-    distOverGround.append(timeStep[i]/np.timedelta64(1, 's') * speed.iloc[i])
-    delev.append(np.sin(pitch.iloc[i]-bias) * distOverGround[i])
-    dforward.append(np.cos(pitch.iloc[i]) * distOverGround[i])
-    dlateral.append(np.sin(yaw.iloc[i]) * distOverGround[i])
 
-# Integrate the individual increments
-elevationC = np.cumsum(delev, dtype=float)
-elevationC = np.insert(elevationC, 0, 0) # pad first cell w/ zero
-crossShoreC = np.cumsum(dforward, dtype=float)
-crossShoreC = np.insert(crossShoreC, 0, 0) # pad first cell w/ zero
-# laterl = np.cumsum(dlateral, dtype=float)
 
 # get WL to correct depths
 go = getDataFRF.getObs(time.iloc[0].to_pydatetime(), time.iloc[-1].to_pydatetime())
 WL = go.getWL()
-depthTruth = elevationNAVD88 - np.mean(WL['WL']) # correct elevations to depths (with WL)
+def developProfFromPressureAndIMUprofile(data, WL, plotting=False):
+    """Function develops profile from pressure signal and IMU pitch values from already subseted python dataframe.
+    Uses a running average 2-way (filt-filt)
+    Args:
+        data: already subset data frame
+        WL: waterlevel to adjust the elevations from the crawler
+        plotting: True/false or filename.  (Default=False)
 
-# create FRF to local coordinate where start of [idx] is zero
-truthX = xFRF- xFRF.min()
-if elevationC[-1] - elevationC[0] > 0: # profile goes up (coming from offshore)
-    truthX = truthX[::-1]
+    Returns:
 
-plt.figure();
-for win in [50]:
-    # plt.plot(sb.running_mean(crossShoreC, win), -sb.running_mean(pressure, win), label=r"$\bar{P}$".format(win))
-    runningP = signal.filtfilt(np.ones(win)/win, 1,  pressure)
-    plt.plot(crossShoreC, -runningP, label=r'$\bar{P}$')
-# for order in [3, 5, 7]:
-#     for freq in [10, 20, 50, 1000]:
-#         a,b = signal.butter(order, freq, 'low', analog=True )
-#         lowpassP = signal.filtfilt(b, a, pressure)
-#         plt.plot(crossShoreC, -lowpassP, '.-', ms =1, label=f'lowPass freq:{freq}, order:{order}')
-plt.plot(truthX, depthTruth, '.', label='Crawler GPS')
-plt.plot(crossShoreC, speed, linestyle='-', linewidth=1, label='speed')
-plt.plot(crossShoreC, elevationC-pressure.iloc[0], '.', label='Integrated Soln')
-plt.legend()
-plt.xlabel('Vehicle Local Coordinate system [m]')
-plt.ylabel('Depth [m]')
+    """
+    time = data['time'][idx]
+    pitch = np.deg2rad(data['attitude_pitch_deg'][idx])
+    yaw = np.deg2rad(data['attitude_pitch_deg'][idx])
+    speed = data['NAVSoln_speed_over_ground'][idx]
+    xFRF = data['xFRF'][idx]
+    yFRF = data['yFRF'][idx]
+    pressure = data['NAVSoln_depth'][idx]
+    elevationNAVD88 = data['elevation_NAVD88_m'][idx]
+    print("using crawler as trugh (not survey)")
+    timeStep = np.diff(time)
+    distOverGround, delev, dforward, dlateral = [], [], [], []
+
+    bias = 0.04411434 #
+    for i in range(timeStep.shape[0]):
+        distOverGround.append(timeStep[i]/np.timedelta64(1, 's') * speed.iloc[i])
+        delev.append(np.sin(pitch.iloc[i]-bias) * distOverGround[i])
+        dforward.append(np.cos(pitch.iloc[i]) * distOverGround[i])
+        dlateral.append(np.sin(yaw.iloc[i]) * distOverGround[i])
+    
+    # Integrate the individual increments
+    elevationC = np.cumsum(delev, dtype=float)
+    elevationC = np.insert(elevationC, 0, 0) # pad first cell w/ zero
+    crossShoreC = np.cumsum(dforward, dtype=float)
+    crossShoreC = np.insert(crossShoreC, 0, 0) # pad first cell w/ zero
+    
+    depthTruth = elevationNAVD88 - np.mean(WL['WL']) # correct elevations to depths (with WL)
+    
+    # create FRF to local coordinate where start of [idx] is zero
+    truthX = xFRF- xFRF.min()
+    if elevationC[-1] - elevationC[0] > 0: # profile goes up (coming from offshore)
+        truthX = truthX[::-1]
+    
+    if plotting is not False:
+        plt.figure();
+        for win in [40, 50]:
+            # plt.plot(sb.running_mean(crossShoreC, win), -sb.running_mean(pressure, win), label=r"$\bar{P}$".format(win))
+            runningP = signal.filtfilt(np.ones(win)/win, 1,  pressure)
+            plt.plot(crossShoreC, -runningP, label=r'$\bar{P}$'.format(win))
+        # for order in [3, 5, 7]:
+        #     for freq in [10, 20, 50, 1000]:
+        #         a,b = signal.butter(order, freq, 'low', analog=True )
+        #         lowpassP = signal.filtfilt(b, a, pressure)
+        #         plt.plot(crossShoreC, -lowpassP, '.-', ms =1, label=f'lowPass freq:{freq}, order:{order}')
+        plt.plot(truthX, depthTruth, '.', label='Crawler GPS')
+        plt.plot(crossShoreC, speed, linestyle='-', linewidth=1, label='speed')
+        plt.plot(crossShoreC, elevationC-pressure.iloc[0], '.', label='IMU drift removed')
+        plt.legend()
+        plt.xlabel('Vehicle Local Coordinate system [m]')
+        plt.ylabel('Depth [m]')
+        if plotting is not True:
+            plt.savefig(plotting)
+            plt.close()
+    
+    return data
