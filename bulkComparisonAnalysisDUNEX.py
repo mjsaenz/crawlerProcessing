@@ -45,13 +45,19 @@ plt.close()
 
 #exploreable plots
 plt.figure();
-plt.hist2d(surveyE, crawlerE, bins=200, cmap='YlOrBr', norm=LogNorm())
-a=plt.colorbar();
+ax1 = plt.subplot2grid((2,1), (0,0))
+_,_,_,mca = ax1.hist2d(surveyE, crawlerE, bins=200, cmap='YlOrBr', norm=LogNorm())
+a=plt.colorbar(mca, ax=ax1)
 a.set_label('counts');
 plt.title('depth comparison')
-plt.plot([-3, -3], [3,3], 'k-')
+ax1.plot([-3, -3], [3,3], 'k-')
 plt.xlabel('survey elevation NAVD88 [m]')
 plt.ylabel('crawler elevation NAVD88 [m]')
+
+ax2 = plt.subplot2grid((2,1), (1,0))
+ax2.hist(residualsE, bins=100);
+ax2.set_xlabel('residuals [m]')
+
 plt.savefig(os.path.join(fpath, "SkillComparison"))
 plt.close()
 

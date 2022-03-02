@@ -89,36 +89,48 @@ data = crawlerTools.identifyCrawlerProfileLines(data, angleWindow=25, lineLength
             GPSfname).split('.')[0])+f"IdentifyProfileLines.png"), lineNumbers=lineNumbers, lineAngles=lineAngles,
                                                 lineWindow=lineWindow)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-idx = data['profileNumber'] == 731
+idx = data['profileNumber'] == 778
 
 
 # get WL to correct depths
-go = getDataFRF.getObs(time.iloc[0].to_pydatetime(), time.iloc[-1].to_pydatetime())
-WL = go.getWL()
-def developProfFromPressureAndIMUprofile(data, WL, plotting=False):
+# go = getDataFRF.getObs(time.iloc[0].to_pydatetime(), time.iloc[-1].to_pydatetime())
+# WL = go.getWL()
+def developProfFromPressureAndIMUprofile(data, WL, plotting=False, **kwargs):
     """Function develops profile from pressure signal and IMU pitch values from already subseted python dataframe.
     Uses a running average 2-way (filt-filt)
     Args:
         data: already subset data frame
         WL: waterlevel to adjust the elevations from the crawler
         plotting: True/false or filename.  (Default=False)
-
+    Keyword Args:
+        "integratedProfile": use IMU to derive a profile (try to identify bias and remove that as well)
     Returns:
 
     """
-    time = data['time'][idx]
-    pitch = np.deg2rad(data['attitude_pitch_deg'][idx])
-    yaw = np.deg2rad(data['attitude_pitch_deg'][idx])
-    speed = data['NAVSoln_speed_over_ground'][idx]
-    xFRF = data['xFRF'][idx]
-    yFRF = data['yFRF'][idx]
-    pressure = data['NAVSoln_depth'][idx]
-    elevationNAVD88 = data['elevation_NAVD88_m'][idx]
-    print("using crawler as trugh (not survey)")
+    runAvgWin = [10, 20] #, 40, 60]
+    integratedProfile = kwargs.get('integratedProfile', False)
+    # first unpack data
+    time = data['time']
+    pitch = np.deg2rad(data['attitude_pitch_deg'])
+    yaw = np.deg2rad(data['attitude_pitch_deg'])
+    speed = data['NAVSoln_speed_over_ground']
+    xFRF = data['xFRF']
+    # yFRF = data['yFRF']
+    pressure = data['NAVSoln_depth']
+    elevationNAVD88 = data['elevation_NAVD88_m']
+    # print("using crawler as truth (not survey)")
     timeStep = np.diff(time)
+    biasWindow = [-0.25, 0.25] # bias window
+    #next identify the bias for this section
+    # counts, bins, _ = plt.hist(data['attitude_pitch_deg'], bins=50)
+    hist, bin_edges = np.histogram(data['attitude_pitch_deg'], bins=500, density=False)
+    binCenters = (bin_edges + np.diff(bin_edges).mean())[:-1]
+    mask = (binCenters < biasWindow[1]) &  (binCenters > biasWindow[0])
+    bias = binCenters[mask][hist[mask].argmax()]
+    # bias = bins[np.argwhere(counts.max() == counts).squeeze()] # 0.04411434 #
+    
+    print(f'      Bias Removed {bias:.3f}')
     distOverGround, delev, dforward, dlateral = [], [], [], []
-
-    bias = 0.04411434 #
     for i in range(timeStep.shape[0]):
         distOverGround.append(timeStep[i]/np.timedelta64(1, 's') * speed.iloc[i])
         delev.append(np.sin(pitch.iloc[i]-bias) * distOverGround[i])
@@ -126,35 +138,99 @@ def developProfFromPressureAndIMUprofile(data, WL, plotting=False):
         dlateral.append(np.sin(yaw.iloc[i]) * distOverGround[i])
     
     # Integrate the individual increments
-    elevationC = np.cumsum(delev, dtype=float)
+    elevationC = np.cumsum(delev, dtype=float)  # elevation
     elevationC = np.insert(elevationC, 0, 0) # pad first cell w/ zero
-    crossShoreC = np.cumsum(dforward, dtype=float)
+    crossShoreC = np.cumsum(dforward, dtype=float)  # cross-shore coordinate
     crossShoreC = np.insert(crossShoreC, 0, 0) # pad first cell w/ zero
     
     depthTruth = elevationNAVD88 - np.mean(WL['WL']) # correct elevations to depths (with WL)
     
-    # create FRF to local coordinate where start of [idx] is zero
-    truthX = xFRF- xFRF.min()
+    # move all of the data to FRF and NAVD88 coordinate systems #  to local coordinate where start of [idx] is zero
+    truthX = xFRF
+    # trueShoreLine = xFRF[np.abs(elevationNAVD88).argmin()]
     if elevationC[-1] - elevationC[0] > 0: # profile goes up (coming from offshore)
-        truthX = truthX[::-1]
-    
-    if plotting is not False:
-        plt.figure();
-        for win in [40, 50]:
+        runningP, shorelineP, crossShoreP= {}, {}, {}
+        # crossShoreC = crossShoreC + trueShoreLine
+        crossShoreP = xFRF.max() - crossShoreC.max() + crossShoreC  # adjust cross-shore coordinate for pressure to xFRF
+        for win in runAvgWin:
+            # subtract first point (in air) to "zero"/calibrate the signal on this profile the sig
+            p_avg = signal.filtfilt(np.ones(win)/win, 1,  pressure[::-1]) - pressure.iloc[-1]
+            runningP[win] = p_avg - np.mean(WL['WL'])  # adjust for waterlevel
+        # develop offset to adjust IMU derived profiles to pressure  loc at offshore location
+        pressureOffset = -p_avg.max()
+        # if integrated profile is too high, # re-compute with double bias
+        if integratedProfile == True:
+            for ii in range(10):
+                if (elevationC.max() + pressureOffset > elevationNAVD88.max()) :
+                    bias = bias / 2
+                    delev = []
+                    for i in range(timeStep.shape[0]):
+                        delev.append(np.sin(pitch.iloc[i]-bias) * distOverGround[i])
+                    elevationC = np.cumsum(delev, dtype=float)  # elevation # Integrate the individual increments
+                    elevationC = np.insert(elevationC, 0, 0) # pad first cell w/ zero
+                
+            elevationC = elevationC[::-1]  # flip shoreward orientation (for traveling towards shore lines)
+        speed = speed[::-1]
+    else: # profile is derived going offshore
+        # first id pressure
+        runningP, shorelineP, crossShoreP= {}, {}, {}
+        # crossShoreC = crossShoreC + trueShoreLine
+        crossShoreP = xFRF.max() - crossShoreC.max() + crossShoreC  # adjust cross-shore coordinate for pressure to xFRF
+        for win in runAvgWin:
             # plt.plot(sb.running_mean(crossShoreC, win), -sb.running_mean(pressure, win), label=r"$\bar{P}$".format(win))
-            runningP = signal.filtfilt(np.ones(win)/win, 1,  pressure)
-            plt.plot(crossShoreC, -runningP, label=r'$\bar{P}$'.format(win))
+            p_avg = signal.filtfilt(np.ones(win)/win, 1,  pressure) - pressure.iloc[0] # subtract first point to "zero"
+            # the sig
+            runningP[win] = p_avg - np.mean(WL['WL'])  # adjust for Waterlevel
+        pressureOffset = -elevationC[-1] - p_avg.max()  # adjusting the offshore integrated solution to collacte to
+        # pressure
+        if integratedProfile == True:
+            for ii in range(10):
+                if (elevationC.max() + pressureOffset > elevationNAVD88.max()) :
+                    bias = bias / 2
+                    delev = []
+                    for i in range(timeStep.shape[0]):
+                        delev.append(np.sin(pitch.iloc[i]-bias) * distOverGround[i])
+                    elevationC = np.cumsum(delev, dtype=float)  # elevation # Integrate the individual increments
+                    elevationC = np.insert(elevationC, 0, 0) # pad first cell w/ zero
+
+    if plotting is not False:
+        fs = 12 # fontsize
+        fig = plt.figure();
+        ax = plt.subplot2grid((5,1), (0,0), rowspan=4)
+        ax.set_title(f"Derived Profiles for {data['time'].iloc[0].strftime('%Y-%m-%d')} profile:"
+                f" {data['profileNumber'].mean()}", fontsize=fs)
+        for win in runAvgWin:
+            # plt.plot(sb.running_mean(crossShoreC, win), -sb.running_mean(pressure, win), label=r"$\bar{P}$".format(win))
+            ax.plot(crossShoreP, -runningP[win], label=r"$\bar{P}_{%s}$" %(str(win))) #_{%s}$'.format(win))
         # for order in [3, 5, 7]:
         #     for freq in [10, 20, 50, 1000]:
         #         a,b = signal.butter(order, freq, 'low', analog=True )
         #         lowpassP = signal.filtfilt(b, a, pressure)
         #         plt.plot(crossShoreC, -lowpassP, '.-', ms =1, label=f'lowPass freq:{freq}, order:{order}')
-        plt.plot(truthX, depthTruth, '.', label='Crawler GPS')
-        plt.plot(crossShoreC, speed, linestyle='-', linewidth=1, label='speed')
-        plt.plot(crossShoreC, elevationC-pressure.iloc[0], '.', label='IMU drift removed')
-        plt.legend()
-        plt.xlabel('Vehicle Local Coordinate system [m]')
-        plt.ylabel('Depth [m]')
+        ax.plot(truthX, depthTruth, '.', label='Crawler GPS')
+        if integratedProfile == True:
+            ax.plot(crossShoreP, elevationC + pressureOffset, '.', label=r'IMU drift removed: ${%f}^{\circ}$' %(
+                    bias))
+        xlims = ax.get_xlim()
+        plt.plot(xlims, [WL['WL'], WL['WL']], 'b--', label='Water Level' )
+        
+        ax.legend(fontsize=fs)
+        plt.ylabel('Elevation NAVD88 [m]', fontsize=fs)
+        
+        ax2 = plt.subplot2grid((5,1), (4,0), sharex=ax)
+        ax2.plot(crossShoreP, speed, linestyle='-', linewidth=1, label='speed')
+        ax2.set_ylabel('speed [m/s]', fontsize=fs)
+        ax2.set_xlabel('xFRF [m]', fontsize=fs)
+        ax2.tick_params(axis='both', which='both', labelsize=fs, size=5)
+        ax.tick_params(axis='y', which='both', labelsize=fs)
+        ax.tick_params(
+                axis='x',          # changes apply to the x-axis
+                which='both',      # both major and minor ticks are affected
+                bottom=False,      # ticks along the bottom edge are off
+                top=False,         # ticks along the top edge are off
+                labelbottom=False)
+        plt.tight_layout(h_pad=0)
+
         if plotting is not True:
             plt.savefig(plotting)
             plt.close()

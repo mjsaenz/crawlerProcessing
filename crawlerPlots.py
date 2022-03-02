@@ -57,12 +57,15 @@ def bathyPlanViewComparison(fname, data, bathy, topo, **kwargs):
             a = plt.scatter(bathy['xFRF'], bathy['yFRF'], c=bathy['elevation'], vmin=-2, vmax=2, label='survey')
             surveyString = f"Survey: {bathy['time'][0].date()}"
         if topo is not None:
-            plt.pcolormesh(topo['xFRF'], topo['yFRF'], np.mean(topo['elevation'], axis=0), vmin=-2, vmax=2,
-                           label='topo', shading='flat')
-            topoString = f"topo: {topo['time'][0].strftime('%Y%m%d %H:%M')}"
+            topomap = plt.pcolormesh(topo['xFRF'], topo['yFRF'], topo['elevation_mean'], vmin=-2, vmax=2,
+                           label='topo', shading='auto')
+            try:
+                topoString = f"topo: {topo['time'][0].strftime('%Y%m%d %H:%M')}"
+            except(TypeError):
+                topoString = f"topo: {topo['time'].strftime('%Y%m%d %H:%M')}"
             # cmap = plt.scatter(data.xFRF, data.yFRF, c=data.elevation_NAVD88_m-offset, marker='x', vmin=-2, vmax=2, label='crawler')
-            cbar = plt.colorbar()
-            cbar.set_label('elevation NAVD88')
+            # cbar = plt.colorbar(topomap)
+            # cbar.set_label('elevation NAVD88')
         plt.xlabel('xFRF')
         plt.ylabel('yFRF')
         plt.colorbar(a)

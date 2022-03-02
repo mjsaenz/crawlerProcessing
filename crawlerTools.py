@@ -467,6 +467,7 @@ def identifyCrawlerProfileLines(data, angleWindow=25, **kwargs):
     alongshoreWin = kwargs.get("alongshoreSearchWindow", 5)
     if lineAngles is None:  # we're not given direct input
         counts, bins, _  = plt.hist(data['attitude_heading_deg'], bins=20)
+        print('use np.histogram')
         plt.close()
         val1, val2 = heapq.nlargest(2, counts)
         angle1 =  bins[np.argwhere(counts==val1).squeeze()]
