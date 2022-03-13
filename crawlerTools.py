@@ -573,3 +573,41 @@ def identifyCrawlerProfileLines(data, angleWindow=25, **kwargs):
         plt.savefig(fname)
         plt.close()
     return data
+
+
+def calculate3Dspeed(t, x, y, z, **kwargs):
+    """ calculates speed in three dimensions with input positional timeseries.  if you want to calculate in 2D,
+    send zeros/ones for the positonal argument you're not interested in.
+    
+    Args:
+        t: time
+        x: x position
+        y: y position
+        z: z position
+        **kwargs:
+            "velocities": if True, will also return velocities in x,y,z order (default=False)
+
+    Returns:
+        a list of speeds
+        if "velocities" = True, then speed, xVelocities, yVelocities, zVelocities
+
+    """
+    assert len(x) == len(y) == len(z) == len(t), "t, x,y,z need to be the same length"
+    velocities = kwargs.get('velocities', False)
+    xVelo, yVelo, zVelo, speed = [0], [0], [0], [0]
+    for i in range(len(x)-1):
+        if t[i+1] == t[i]:
+            speed.append(0)
+            xVelo.append(0)
+            yVelo.append(0)
+            zVelo.append(0)
+        else:
+            yVelo.append(y[i+1] - y[i])
+            xVelo.append(x[i+1] - x[i])
+            zVelo.append(z[i+1] - z[i])
+            speed.append(np.sqrt( xVelo[-1]**2 + yVelo[-1]**2 + zVelo[-1]**2)/(t[i+1]-t[
+                i]).total_seconds())
+    if velocities is True:
+        return speed, xVelo, yVelo, zVelo
+    else:
+        return speed
