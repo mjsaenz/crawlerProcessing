@@ -258,8 +258,8 @@ def RotateTranslate(vYaw, vPitch, vRoll,  Gxw, Gyw, Gzw, Gxv=0, Gyv=0, Gzv=0, **
     
     verbose=kwargs.get('verbose', True)
     #Rotate GPS 90+Yyaw CW about Zg so Yv and Yw match.
-    Rz= np.matrix([[np.cos(np.deg2rad(90+vYaw)), -np.sin(np.rad2deg(90+vYaw)), 0],
-                   [np.sin(np.deg2rad(90+vYaw)),  np.cos(np.rad2deg(90+vYaw)), 0],
+    Rz= np.matrix([[np.cos(np.deg2rad(90+vYaw)), -np.sin(np.deg2rad(90+vYaw)), 0],
+                   [np.sin(np.deg2rad(90+vYaw)),  np.cos(np.deg2rad(90+vYaw)), 0],
                    [                          0,                            0, 1]])
     
     # Rotate GPS Yg 180-Pitch CW so the Xv/Xg and Zv/Zg match
