@@ -1,17 +1,18 @@
+
 """ This code analyses a single profile repetedly for the DUNEX time period.  Specficially will outouut a tuple with
 statistics/residuals for multiple comparisons  and plots comparing the single profiles. """
-import math
 import sys, os
-import matplotlib.pyplot as plt
+
 import numpy as np
+
 import crawlerPlots
-from testbedutils import geoprocess as gp
+from crawlerPlots import speedComparisonPlot
+
 sys.path.append('/home/spike/repos')
 from getdatatestbed import getDataFRF
 import crawlerTools
 import datetime as DT
 import pandas as pd
-import glob
 import pickle
 from integratedProfile import developProfFromPressureAndIMUprofile
 ###############################
@@ -49,6 +50,13 @@ flist= ["/home/spike/data/20211005/20211005_192624.153_telemetry.gssbin_GPS_STAT
         "/home/spike/data/20211025/20211025_160206.428_telemetry.gssbin_GPS_STAT_2.csv"]
 
 logStats = []
+crossShoreFile = open('/home/spike/repos/crawlerProcessing/plots/PaperInfoPlots/crossshoreOffset.txt', 'w')
+crossShoreFile.write('time,Hs, Tp, Dm, profile, cross-shore offset xGPS-xPress\n')
+
+allSurvey, allCrawler = pickle.load(open("allCrawlerComparison.pkl", 'rb'))
+
+saveCrawler, saveSurvey = allCrawler.iloc[:0,:].copy(), allSurvey.iloc[:0, :].copy()
+
 for GPSfname in flist:
     
     ########################################################################
@@ -57,7 +65,7 @@ for GPSfname in flist:
     print(f"\n\n Working on date {start}")
     end = start + DT.timedelta(days=1)
     go = getDataFRF.getObs(start, end)
-    wave = go.getWaveData()
+    wave = go.getWaveData('8m-array')
     print(f"time: {wave['time'][0].strftime('%Y-%m-%d')}, Hs: {wave['Hs'][0]:.2f}, Tp: {1/wave['peakf'][0]:.2f}")
     
     if getdata is True:
@@ -70,6 +78,7 @@ for GPSfname in flist:
     #
     elif start == DT.datetime(2021, 10, 20, 0, 0):
         # time: 2021-10-20, Hs: 0.74
+        surveyVessel = 'LARC'
         fname = "/data/FRF/geomorphology/elevationTransects/survey/FRF_geomorphology_elevationTransects_survey_20211021.nc"
         go.epochd1 = (go.d1 - DT.timedelta(days=2)).timestamp()
         go.end = DT.datetime(2021, 10, 22)
@@ -81,6 +90,7 @@ for GPSfname in flist:
 
     elif start == DT.datetime(2021, 10, 18):   #manually derived values
         # time: 2021-10-18, Hs: 1.22
+        surveyVessel = 'CRAB'
         fname = "/data/FRF/geomorphology/elevationTransects/survey" \
                 "/FRF_geomorphology_elevationTransects_survey_20211019.nc"
         idxSurvey = 14 # 20211019.nc'
@@ -97,6 +107,7 @@ for GPSfname in flist:
 
     elif start == DT.datetime(2021, 10, 19):
         go.epochd2 = go.d2.timestamp()
+        surveyVessel = 'CRAB'
         fname = "/data/FRF/geomorphology/elevationTransects/survey/FRF_geomorphology_elevationTransects_survey_20211019.nc"
         go.end = start + DT.timedelta(days=3)
         go.epochd2 = go.end.timestamp()
@@ -107,15 +118,18 @@ for GPSfname in flist:
      
     elif start == DT.datetime(2021, 10, 5): # date in ['20211005']:
         # time: 2021-10-05, Hs: 0.65
+        surveyVessel = 'CRAB'
         fname = '/data/FRF/geomorphology/elevationTransects/survey/FRF_geomorphology_elevationTransects_survey_20211006.nc'
         lineNumbers = [639, 453, 413]
         lineAngles = [72, 249]
         idxSurvey = 10
         go.end = start + DT.timedelta(days=3)
         go.epochd2 = go.end.timestamp()
+        
     
     elif start == DT.datetime(2021, 10, 25):  #date in ['20211025']:
         # time: 2021-10-25, Hs: 0.76
+        surveyVessel = 'LARC'
         fname = '/data/FRF/geomorphology/elevationTransects/survey/FRF_geomorphology_elevationTransects_survey_20211024.nc'
         lineAngles = [75, 256]
         lineNumbers = [957, 866, 823, 775, 731, 686]     # complicated line number: 917
@@ -128,6 +142,7 @@ for GPSfname in flist:
 
     elif start == DT.datetime(2021, 9, 28): # in ['20210928']:
         #time: 2021-09-28, Hs: 0.77
+        surveyVessel = 'LARC'
         fname = '/home/spike/data/FRF/geomorphology/elevationTransects/survey' \
                                         f'/FRF_geomorphology_elevationTransects_survey_20211006.nc'
         lineNumbers = [558, 639]
@@ -140,6 +155,8 @@ for GPSfname in flist:
         bathy, topo = None, None
 
     bathy = go.getBathyTransectFromNC(fname=fname, forceReturnAll=True)
+    bathy['surveyVessel'] = surveyVessel
+
     bathy = pd.DataFrame.from_dict(bathy)
     topo = None
     
@@ -173,21 +190,11 @@ for GPSfname in flist:
           consecutivePointThresh=50, fname=os.path.join(os.path.dirname(GPSfname),  ''.join(os.path.basename(
                  GPSfname).split('.')[0])+f"IdentifyProfileLines.png"), lineNumbers=lineNumbers, lineAngles=lineAngles,
                                                     lineWindow=lineWindow)
-    #
-    # data_og = crawlerTools.identifyCrawlerProfileLines(data_og, angleWindow=25, fname=os.path.join(os.path.dirname(GPSfname),
-    #                                 ''.join(os.path.basename(GPSfname).split('.')[0])+f"IdentifyProfileLines_OG.png"))
     for profile in sorted(bathy['profileNumber'].unique()):
-        # if profile <= 1: continue  #handles panda's error AttributeError: 'UnaryOp' object has no attribute 'evaluate'
-        # subSetLogic = f'(yFRF <= {profile + yRange}) & (yFRF >={profile - yRange}) & (profiles==True)'
-        
         subB = bathy.query(f'(profileNumber == {profile})')
         subC = crawlerTools.searchPointsInRadius(subB, data, radius=searchRadius, removeDuplicates=False,
                                                  searchOnlyLinePoints=True)
-        
-        
-        
-        # subC_og = crawlerTools.searchPointsInRadius(subB, data_og, radius=searchRadius, removeDuplicates=False)
-        #data.query(f'('profileNumber <= {profile + yRange}) & (profileNumber >= {profile - yRange})')
+              
         if (subC is not None and subB is not None) and subC.__len__() > 1  and (type(subC) is pd.core.frame.DataFrame
                                   and not subC.empty) and (type(subB) is pd.core.frame.DataFrame and not subB.empty):
             fOut = os.path.join(savePath, f"singleProfile_{subC['time'].iloc[0].strftime('%Y_%m_%d')}"
@@ -201,13 +208,32 @@ for GPSfname in flist:
             wl = go2.getWL()
             plotFname= os.path.join(savePath, f"DerivedCompare_{subC['time'].iloc[0].strftime('%Y_%m_%d')}"
                                               f"_{profile.astype(int):04}")
-            subC = developProfFromPressureAndIMUprofile(subC, WL=wl, plotting=plotFname, integratedProfile=True)
-        
+            subC = developProfFromPressureAndIMUprofile(subC, WL=wl, plotting=plotFname, integratedProfile=False)
+            # mask = np.where((subC['elevation_pressure'] - subC['elevation_pressure'][0]) < 0)[0]
+            # if np.size(mask) > 0:
+            #     xLocPress = subC['xFRF_pressure'][mask.min()]
+            #     xLocGPS  = subC['xFRF'][np.where(subC['elevation_NAVD88_m'] < 0)[0].min()]
+            #     crossShoreFile.write(f"   time: {wave['time'][0].strftime('%Y-%m-%d')}, Hs: {wave['Hs'][0]:.2f}, Tp:"
+            #             f" {1/wave['peakf'][0]:.2f}, Dm: {wave['waveDm'][0]:.02f}, {profile}, "
+            #                          f"{xLocGPS - xLocPress:.1f}\n")
+            subC['speed_over_ground_GPS'], subC['xFRF_velocity'], subC['yFRF_velocity'], subC['elevation_velocity'] =\
+                crawlerTools.calculate3Dspeed(t=subC['time'], x=subC['xFRF'], y=subC['yFRF'],
+                                              z=subC['elevation_NAVD88_m'], velocities=True)
+            fnameOut=os.path.join(savePath, f"speedComparison_{subC['time'].iloc[0].strftime('%Y_%m_%d')}"
+                                            f"_{profile.astype(int):04}")
+            speedComparisonPlot(subC, wave, profile, fnameOut=fnameOut)
+            
             stats, newX, surveyInterp, crawlInterp, pitch, roll = crawlerPlots.profileCompare(subC=subC, subB=subB,
-                                                            fname=fOut, plotRaws=True)# subC_og=subC_og)
-            logStats.append((GPSfname.split('/')[4], profile, stats, newX, surveyInterp, crawlInterp, pitch, roll))
-    
-    
+                                                            fname=fOut, plotRaws=False)# subC_og=subC_og)
+            logStats.append((GPSfname.split('/')[4], profile, stats, newX, surveyInterp, crawlInterp, pitch, roll,
+                             subB['surveyVessel'].iloc[0], subC, subB))
+            saveCrawler = saveCrawler.append(subC)
+            saveSurvey = saveSurvey.append(subB)
+crossShoreFile.close()
+## make speed comparison with all cralwer
+speedComparisonPlot(saveCrawler, wave, 'all', fnameOut='sefwef', showplot=True)
+pickle.dump((saveSurvey, saveCrawler), open("allCrawlerComparison.pkl", 'wb'))
+
 print('Do something with LogStats')
 pickle.dump(logStats, open("logStats.pkl", 'wb'))
 for i in range(len(logStats)):
