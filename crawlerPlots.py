@@ -177,6 +177,7 @@ def profileCompare(subC, subB, **kwargs):
 
     """
     rawCrawler = kwargs.get('rawCrawler', None)
+    
     profileNumber = np.unique(subB['profileNumber']).squeeze()
     date = subB['time'].iloc[0].date().strftime("%Y-%m-%d")
     crawlDate = subC['time'].iloc[0].date().strftime("%Y-%m-%d")
@@ -274,7 +275,7 @@ def profileCompare(subC, subB, **kwargs):
     cbar.set_label('Roll')
     
     ax3 = plt.subplot2grid((2,4), (0, 3), sharey=ax1) # plt.subplot(224)
-    c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(alongshoreResidual), s=crawlerMS, vmin=0, vmax=10,
+    c = ax3.scatter(surveyInterp, crawlInterp, c=np.abs(alongshoreResidual), s=crawlerMS, vmin=0, vmax=10,
                     cmap='inferno', label='Translate/Rotate')
     
     # c = ax3.scatter(crawlInterp, surveyInterp, c=np.abs(totalPitchInterpX), vmin=0, vmax=7, cmap='bone')
@@ -301,3 +302,54 @@ def profileCompare(subC, subB, **kwargs):
     plt.savefig(saveFname)
     plt.close()
     return stats, newX, surveyInterp, crawlInterp, totalPitchInterpX, totalRollInterpY
+
+
+def speedComparisonPlot(subC, wave, profile, fnameOut, **kwargs):
+    ########
+    showplot=kwargs.get('showplot', False)
+    from scipy import signal
+    window= 30
+    f, p_xVel = signal.welch(subC['xFRF_velocity'], fs = np.median(np.diff(subC['time']))/np.timedelta64(1,'s'),
+                             nperseg=window)
+    f, p_yVel = signal.welch(subC['yFRF_velocity'], fs = np.median(np.diff(subC['time']))/np.timedelta64(1,'s'),
+                             nperseg=window)
+    f, p_zVel = signal.welch(subC['elevation_velocity'], fs = np.median(np.diff(subC['time']))/
+                             np.timedelta64(1,'s'), nperseg=window)
+    f, p_spd = signal.welch(subC['speed_over_ground_GPS'], fs = np.median(np.diff(subC[                                                                                                              'time']))/
+                                                              np.timedelta64(1,'s'), nperseg=window)
+    from matplotlib import pyplot as plt
+    plt.style.use('seaborn-paper')
+    
+    plt.figure()
+    ax1 = plt.subplot2grid((2,2),(0,0))
+    ax1.plot(1/f, p_xVel, label='x Velocity')
+    ax1.plot([1/wave['peakf'], 1/wave['peakf']], [0, .5], linewidth=.1)
+    ax1.set_title('x spectra')
+    ax1.set_xlabel('period [s]')
+    
+    ax3 = plt.subplot2grid((2,2),(1,0))
+    ax3.plot(1/f, p_yVel, label='y Velocity')
+    ax3.plot([1/wave['peakf'], 1/wave['peakf']], [0, .5],linewidth=.1)
+    ax3.set_title('y spectra')
+    ax3.set_xlabel('period [s]')
+    ax4 = plt.subplot2grid((2,2),(1,1))
+    ax4.plot(1/f, p_zVel, label='z Velocity')
+    ax4.plot([1/wave['peakf'], 1/wave['peakf']], [0, .01], linewidth=.1)
+    ax4.set_title('z spectra')
+    ax4.set_xlabel('period [s]')
+    ax2 = plt.subplot2grid((2,2),(0,1))
+    a = ax2.scatter(subC['speed_over_ground_GPS'], subC['NAVSoln_speed_over_ground'],
+                 c=subC['elevation_NAVD88_m'])
+    cbar = plt.colorbar(a)
+    cbar.set_label('elevation')
+    ax2.plot([0,5], [0,5], 'k--')
+    ax2.set_xlabel('GPS based Speed')
+    ax2.set_ylabel('NAV Soln based Speed')
+    ax2.set_ylim([0, 2])
+    ax2.set_xlim([0,2])
+    plt.suptitle(f"Velocity Comparison: {wave['time'][0].strftime('%Y-%m-%d')}: profile {profile}\n$H_s$:"
+                 f"{wave['Hs'][0]:.1f}, $T_p$: {1/wave['peakf'][0]:.1f}")
+    plt.tight_layout()
+    plt.savefig(fnameOut)
+    if showplot is not True:
+        plt.close()
