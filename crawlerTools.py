@@ -268,7 +268,6 @@ def RotateTranslate(vYaw, vPitch, vRoll,  Gxw, Gyw, Gzw, Gxv=0, Gyv=0, Gzv=0, **
                   [-np.sin(np.deg2rad(180-vPitch)), 0, np.cos(np.deg2rad(180-vPitch))]])
     
     # Rotate GPS Xg Roll CCW so that Yv/Yg and Yv/Yg match
-    # SB question: why neg sin of neg roll???
     Rx=np.matrix([[1,                            0,                             0],
                   [0,   np.cos(np.deg2rad(-vRoll)),  -np.sin(np.deg2rad(-vRoll))],
                   [0,   np.sin(np.deg2rad(-vRoll)),  np.cos(np.deg2rad(-vRoll))]])
