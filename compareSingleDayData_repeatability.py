@@ -29,9 +29,18 @@ GPSfname = "/data/20220113/20220113_151649.080_telemetry.gssbin_GPS_STAT_2.csv"
 
 ########################################################################
 # figure out start/end times gather background data
-start = DT.datetime(2022, 1, 13)
+
+GPSfname = "/data/20220316/20220316_133050.186_telemetry.gssbin_GPS_STAT_2.csv"
+###############################################
+## first load file and correct elipsoid values
+data = crawlerTools.loadAndMergePriorityFiles(GPSfname, verbose=False, combineDays=True)
+data = crawlerTools.convert2FRF(data)
+data = crawlerTools.cleanDF(data)
+data, offset = crawlerTools.identfyMastOffset(data)
+
+start = data['time'].iloc[0]
 print(f"\n\n Working on date {start}")
-end = start + DT.timedelta(days=1)
+end = data['time'].iloc[-1]  #DT.timedelta(days=1)
 go = getDataFRF.getObs(start, end)
 wave = go.getWaveData()
 print(f"time: {wave['time'][0].strftime('%Y-%m-%d')}, Hs: {wave['Hs'][0]:.2f}, Tp: {1/wave['peakf'][0]:.2f}, "
@@ -43,28 +52,14 @@ bathy = pd.DataFrame.from_dict(bathy)
 fname = None
 topo = None
 
-###############################################
-## first load file and correct elipsoid values
-# data = crawlerTools.loadAndMergePriorityFiles(GPSfname, verbose=False, combineDays=True)
-# #plt.figure(); plt.hist(data['attitude_roll_deg'], bins=200); plt.title(f'roll {start}'); plt.show()
-# plt.figure(); plt.hist(data['attitude_pitch_deg'], bins=200); plt.title(f'pitch {start}'); plt.show()
-# plt.show()
-# # rawCrawler = data.copy()
-# # rawCrawler = crawlerTools.convert2FRF(rawCrawler)
-# data = crawlerTools.convert2FRF(data)
-# # data = crawlerTools.loadAndMergeFiles(GPSfname, verbose=False)  # no control of output variable names
-# if data is None:
-#     raise NotImplementedError('Need files to load!')
-# data = crawlerTools.cleanDF(data)
-#
 # # now rotate translate for orientation
 # # data_og = crawlerTools.TranslateOnly_Wrong(data.copy(), offset)
-# data = crawlerTools.rotateTranslatePoints(data, offset)
-# if data is None:
-#     print(f'skipping {fname} no good data\n--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=')
-#     raise EnvironmentError("no Good Crawler Data")
-# fnameSave = 'data/repeatabilityDataCrawler.pickle'
-# pickle.dump(data,open(fnameSave, 'wb'))
+data = crawlerTools.rotateTranslatePoints(data, offset)
+if data is None:
+    print(f'skipping {fname} no good data\n--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=')
+    raise EnvironmentError("no Good Crawler Data")
+fnameSave = 'data/repeatabilityTest2DataCrawler.pickle'
+pickle.dump(data,open(fnameSave, 'wb'))
 
 data = pd.read_csv("repeatabilitydemo.csv")  # load matthew's output csv with unique profile numbers
 data['time'] = [DT.datetime.strptime(data['time'][i], "%Y-%m-%d %H:%M:%S") for i in range(len(data['time']))]
