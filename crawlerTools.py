@@ -228,6 +228,54 @@ def interpDataFrames(timeStamp2Interp, df, verbose=False): #  = IMUdf , timeStam
                 out['UNIX_timestamp'] = timeStamp2Interp
     return out
 
+def identfyMastOffset(data, **kwargs):
+    plotting = kwargs.get('plotting', False)
+    coordWindow = 1 # meter in y and x to search for "benchmarkpoint"
+    # xWindow = [4, 6] # meters in the x direction
+    #yWindow = [515, 517]
+    benchmarkLocation = [-75.751422, 36.182032]
+    benchmarkElevation = 5.222 #
+    # Identify points that are west of 10 m in FRF x
+    coord = gp.FRFcoord(benchmarkLocation[0], benchmarkLocation[1], coordType='LL')
+    df_benchMark = data.query(f'xFRF > {coord["xFRF"]-coordWindow} & xFRF < {coord["xFRF"]+coordWindow} '
+                              f'& yFRF < {coord["yFRF"]+coordWindow} & yFRF > {coord["yFRF"]-coordWindow}')
+    # now split between the two samples (start/end)
+    idxSplit = np.argwhere(np.diff(df_benchMark['UNIX_timestamp']) > 5).squeeze().astype(int) + 1
+    start = df_benchMark.iloc[:int(idxSplit)]
+    end = df_benchMark.iloc[int(idxSplit):]
+    startMed = np.median(start['elevation_NAVD88_m'])
+    endMed =  np.median(end['elevation_NAVD88_m'])
+
+    endOffset = endMed - benchmarkElevation
+    startOffset = startMed - benchmarkElevation
+    offset = np.mean((startOffset, endOffset))
+    dataOut = data.query(f'xFRF < {coord["xFRF"]-coordWindow} & xFRF > {coord["xFRF"]+coordWindow} '
+               f'& yFRF > {coord["yFRF"]+coordWindow} & yFRF < {coord["yFRF"]-coordWindow}')
+    data.drop(df_benchMark.index, axis=0).reset_index(inplace=True)    # greater than 5 seconds
+    if plotting == True:
+        plt.style.use('seaborn-pastel')
+        fig = plt.figure(figsize=(15,5)) #axs = plt.subplots(1,3, figsize=(15,5))
+        fig.suptitle(f'todays data {data.time.iloc[0].strftime("%Y-%m-%d")}')
+        ax1 = plt.subplot2grid((2,2), (0,0), colspan=2)
+        ax2 = plt.subplot2grid((2,2), (1,0))
+        ax3 = plt.subplot2grid((2,2), (1,1), sharey=ax2)
+        ax1.plot(data['xFRF'], data['yFRF'], '.')
+        ax1.plot(df_benchMark['xFRF'], df_benchMark['yFRF'], 'rd', label='identified benchmark')
+        ax1.legend()
+        ax2.plot(start['time'],  start['elevation_NAVD88_m'] - np.ones_like(start['time'],
+                                                                       dtype=float) * benchmarkElevation, 'd')
+        ax3.plot(end['time'],  end['elevation_NAVD88_m'] - np.ones_like(endOffset, dtype=float) * benchmarkElevation, 'd')
+        ax2.plot(start['time'], np.ones_like(start['time'],dtype=float) * startOffset, label='median offset')
+        ax3.plot(end['time'], np.ones_like(end['time'],dtype=float) * endOffset , label='median offset')
+        ax2.plot(start['time'], np.ones_like(start['time'], dtype=float) * offset, 'k-', label='Total Offset')
+        ax3.plot(end['time'], np.ones_like(end['time'], dtype=float) * offset, '-k', label='Total Offset')
+        ax2.set_title('preBeach Runs')
+        ax3.set_title('post Beach Runs')
+        ax2.set_ylabel('mast offset [m]')
+        ax2.legend()
+        ax3.legend()
+        plt.tight_layout()
+    return data, offset
 
 def RotateTranslate(vYaw, vPitch, vRoll,  Gxw, Gyw, Gzw, Gxv=0, Gyv=0, Gzv=0, **kwargs):
     """Rotation and Translation of GPS coordinates from top of crawler mast to vehicle origin (base).  Process
