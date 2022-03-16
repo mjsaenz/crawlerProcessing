@@ -107,7 +107,7 @@ def developProfFromPressureAndIMUprofile(data, WL, plotting=False, **kwargs):
     Returns:
 
     """
-    runAvgWin = [10, 20] #, 40, 60]
+    runAvgWin = [10] #, 40, 60]
     integratedProfile = kwargs.get('integratedProfile', False)
     # first unpack data
     time = data['time']
@@ -125,11 +125,12 @@ def developProfFromPressureAndIMUprofile(data, WL, plotting=False, **kwargs):
     # counts, bins, _ = plt.hist(data['attitude_pitch_deg'], bins=50)
     hist, bin_edges = np.histogram(data['attitude_pitch_deg'], bins=500, density=False)
     binCenters = (bin_edges + np.diff(bin_edges).mean())[:-1]
-    mask = (binCenters < biasWindow[1]) &  (binCenters > biasWindow[0])
-    bias = binCenters[mask][hist[mask].argmax()]
-    # bias = bins[np.argwhere(counts.max() == counts).squeeze()] # 0.04411434 #
-    
-    print(f'      Bias Removed {bias:.3f}')
+    mask = (binCenters < biasWindow[1]) & (binCenters > biasWindow[0])
+    if mask.any():
+        bias = binCenters[mask][hist[mask].argmax()]
+        print(f'      Bias Removed {bias:.3f}')
+    else:
+        bias=0
     distOverGround, delev, dforward, dlateral = [], [], [], []
     for i in range(timeStep.shape[0]):
         distOverGround.append(timeStep[i]/np.timedelta64(1, 's') * speed.iloc[i])
@@ -181,7 +182,7 @@ def developProfFromPressureAndIMUprofile(data, WL, plotting=False, **kwargs):
             p_avg = signal.filtfilt(np.ones(win)/win, 1,  pressure) - pressure.iloc[0] # subtract first point to "zero"
             # the sig
             runningP[win] = p_avg - np.mean(WL['WL'])  # adjust for Waterlevel
-        pressureOffset = -elevationC[-1] - p_avg.max()  # adjusting the offshore integrated solution to collacte to
+        pressureOffset = -elevationC[-1] - p_avg.max()  # adjusting the offshore integrated solution to colocated to
         # pressure
         if integratedProfile == True:
             for ii in range(10):
@@ -192,7 +193,8 @@ def developProfFromPressureAndIMUprofile(data, WL, plotting=False, **kwargs):
                         delev.append(np.sin(pitch.iloc[i]-bias) * distOverGround[i])
                     elevationC = np.cumsum(delev, dtype=float)  # elevation # Integrate the individual increments
                     elevationC = np.insert(elevationC, 0, 0) # pad first cell w/ zero
-
+    data[f'elevation_pressure'] = -runningP[win]
+    data[f'xFRF_pressure'] = crossShoreP
     if plotting is not False:
         fs = 12 # fontsize
         fig = plt.figure();
