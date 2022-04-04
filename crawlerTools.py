@@ -10,6 +10,192 @@ import os
 from testbedutils import sblib as sb
 from scipy.spatial import cKDTree
 from testbedutils import geoprocess as gp
+import statistics
+from tkinter import *
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib import pyplot as plt
+import pandas as pd
+import pyproj
+import numpy as np
+import crawlerFunctions as cf
+from datetime import datetime
+import utm
+from pygeodesy import geoids
+import glob
+import os
+from getDataFRF import getObs
+import math
+import pickle
+import xlsxwriter
+
+def transectSelection(data):
+    """
+
+        Args:
+
+        Returns:
+
+        """
+    data["isTransect"] = [False]*data.shape[0]
+    data["profileNumber"] = [float("nan")]*data.shape[0]
+    dispData = data.copy(deep=True)
+    transectIdentify = input("Do you want to select a transect? (Y/N):")
+    while transectIdentify == "Y" or transectIdentify == "y":
+
+        print("To identify a transect, please place a single point at the start and end of the transect with left click")
+        print("Right click to erase the most recently selected point. Middle click (press the scroll wheel) to save.")
+        print("Points have saved when they no longer appear on the graph, close the graph window to proceed.")
+        print("Remember to remove points used in zooming and panning with right click.")
+        print("If more or less than 2 points are selected, no changes will be made")
+        print("Each graph's colorscale represents the y axis of the other graph, i.e. the colorscale of the xy graph is time, and vice versa")
+        print("Select the transect using only 1 graph at a time")
+        # plt.figure()
+        fig, axs = plt.subplots(2)
+        fig.suptitle("Transects xFRF (top) and time (bottom) vs yFRF ")
+        axs[0].scatter(dispData["xFRF"], dispData["yFRF"], c=dispData["time"], cmap='hsv', s=1)
+        axs[0].set(xlabel="FRF Coordinate System X (m)", ylabel = "FRF Coordinate System Y (m)")
+        # plt.ylabel("FRF Coordinate System Y (m)")
+        # axs[1].scatter(dispData["xFRF"], dispData["UNIX_timestamp"], c=dispData["yFRF"], cmap='hsv', s=1)
+        # axs[1].set(xlabel="FRF Coordinate System X (m)", ylabel = "UNIX Timestamp (seconds)")
+        axs[1].scatter(dispData["UNIX_timestamp"], dispData["yFRF"], c=dispData["xFRF"], cmap='hsv', s=1)
+        axs[1].set(xlabel="UNIX Timestamp (seconds)", ylabel = "FRF Coordinate System Y (m)")
+        # plt.ylabel("UNIX Timestamp (seconds)")
+        nodes = plt.ginput(-1, 0)
+        # plt.show()
+        print("Selected Points: ")
+        print(nodes)
+
+        if len(nodes) == 2:
+            # false means ycoord is yFRF, true means UNIX Timestamp
+            isTime = [False, False]
+            # isTime[0] = nodes[0][1] > 1500
+            # isTime[1] = nodes[1][1] > 1500
+            isTime[0] = nodes[0][0] > 1500
+            isTime[1] = nodes[1][0] > 1500
+            if isTime[0] == isTime[1]:
+                endpts = []
+                for x in range(len(nodes)):
+                    curr = nodes[x]
+                    prevDist = float('inf')
+                    closest = tuple()
+                    for y in range(dispData.shape[0]):
+                        if isTime[x]:
+                            # dist = math.sqrt((dispData["UNIX_timestamp"][y] - curr[1]) ** 2 + (dispData["xFRF"][y] - curr[0]) ** 2)
+                            dist = math.sqrt(
+                                (dispData["UNIX_timestamp"][y] - curr[0]) ** 2 + (dispData["yFRF"][y] - curr[1]) ** 2)
+                        else:
+                            dist = math.sqrt((dispData["yFRF"][y] - curr[1]) ** 2 + (dispData["xFRF"][y] - curr[0]) ** 2)
+                        if dist < prevDist:
+                            prevDist = dist
+                            closest = (dispData["xFRF"][y], dispData["yFRF"][y])
+                    endpts.append(closest)
+
+                # identify endpoints within dispdata frame
+                isEndPt = []
+                for x in range(dispData.shape[0]):
+                    if (dispData["xFRF"][x], dispData["yFRF"][x]) in endpts:
+                        isEndPt.append(True)
+                    else:
+                        isEndPt.append(False)
+                dispData["endPt"] = isEndPt
+
+                # identify transect within dispdata
+                isTransect = []
+                betweenNodes = False
+                for x in range(dispData.shape[0]):
+                    if dispData["endPt"][x] and not betweenNodes:
+                        # first node in time of transect
+                        betweenNodes = True
+                        isTransect.append(True)
+                    elif dispData["endPt"][x] and betweenNodes:
+                        # last node in time of transect
+                        betweenNodes = False
+                        isTransect.append(True)
+                    else:
+                        isTransect.append(betweenNodes)
+                dispData["isTransect"] = isTransect
+
+                # assign id to current transect
+                currTransect = dispData.loc[dispData["isTransect"] == True]
+                dispData = dispData.loc[dispData["isTransect"] == False]
+                dispData = dispData.reset_index(drop=True)
+                meanY = statistics.mean(currTransect["yFRF"])
+                print("Close the window to continue.")
+                plt.figure()
+                plt.hist(currTransect["yFRF"])
+                plt.title("FRFy coords of selected transect")
+                plt.show()
+                print("Mean FRFy coord of selected transect: ", meanY)
+                transectID = float(input("What profile number would you like to assign this transect? (float type): "))
+                currTransect['profileNumber'] = currTransect['profileNumber'].replace([float("nan")], transectID)
+
+                print("Updating dataframe...")
+                # update primary dataframe, slowest part of code
+                # search once to find first timestamp
+                startTime = currTransect["UNIX_timestamp"].iloc[0]
+                endTime = currTransect["UNIX_timestamp"].iloc[currTransect.shape[0] - 1]
+                firstI = 0
+                for y in range(data.shape[0]):
+                    if data["UNIX_timestamp"].iloc[y] == startTime:
+                        firstI = y
+                        break
+
+                for x in range(currTransect.shape[0]):
+                    data.loc[x + firstI, "profileNumber"] = transectID
+                    data.loc[x + firstI, "isTransect"] = True
+            else:
+                print("Selected points from different plots. Discarding selected points.")
+        else:
+            print("Selected more or less than 2 points. Discarding selected points.")
+
+        print("Displaying current progress. Close the window to continue.")
+        transectsOnly = data.loc[data["isTransect"] == True]
+        plt.figure()
+        plt.scatter(data["xFRF"], data["yFRF"], c="black", s=1)
+        plt.scatter(transectsOnly["xFRF"], transectsOnly["yFRF"], c=transectsOnly["profileNumber"].to_list(),
+                    cmap='hsv', s=1)
+        cbar = plt.colorbar()
+        plt.xlabel("FRF Coordinate System X (m)")
+        plt.ylabel("FRF Coordinate System Y (m)")
+        cbar.set_label('Transect Number')
+        plt.title("Current Progress")
+        plt.show()
+        transectIdentify = input("Do you want to select another transect? (Y/N):")
+
+    title = input("What would you like to title the charts?: ")
+    filenames = input("What would you like to name the files? (Type null to not save file): ")
+    if filenames != "null":
+        transectsOnly = data.loc[data["isTransect"] == True]
+        print("Close the window to continue.")
+        plt.figure()
+        plt.scatter(transectsOnly["xFRF"], transectsOnly["yFRF"], c=transectsOnly["profileNumber"].to_list(),
+                    cmap='hsv', s=1)
+        cbar = plt.colorbar()
+        plt.xlabel("FRF Coordinate System X (m)")
+        plt.ylabel("FRF Coordinate System Y (m)")
+        cbar.set_label('Transect Number')
+        plt.title(title)
+        plt.savefig(filenames + ".png")
+        plt.show()
+
+        print("Close the window to continue.")
+        plt.figure()
+        plt.scatter(data["xFRF"], data["yFRF"], c="black", s=1)
+        plt.scatter(transectsOnly["xFRF"], transectsOnly["yFRF"], c=transectsOnly["profileNumber"].to_list(),
+                    cmap='hsv', s=1)
+        cbar = plt.colorbar()
+        plt.xlabel("FRF Coordinate System X (m)")
+        plt.ylabel("FRF Coordinate System Y (m)")
+        cbar.set_label('Transect Number')
+        plt.title("Identified Transects vs All Points")
+        plt.savefig(filenames + "Overlayed.png")
+        plt.show()
+
+        data.to_excel(filenames + ".xlsx", engine='xlsxwriter')
+        data.to_pickle(filenames + ".pkl")
+    return data
+
 
 def searchPointsInRadius(groundTruth, searchPoints, radius=5, **kwargs):
     """
