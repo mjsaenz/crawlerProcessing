@@ -31,6 +31,7 @@ GPSfname = "/data/20220113/20220113_151649.080_telemetry.gssbin_GPS_STAT_2.csv"
 # figure out start/end times gather background data
 
 GPSfname = "/data/20220316/20220316_133050.186_telemetry.gssbin_GPS_STAT_2.csv"
+GPSfname = "/data/20220322/20220322_192544.302_telemetry.gssbin_GPS_STAT_2.csv"
 ###############################################
 ## first load file and correct elipsoid values
 data = crawlerTools.loadAndMergePriorityFiles(GPSfname, verbose=False, combineDays=True)
@@ -38,22 +39,23 @@ data = crawlerTools.convert2FRF(data)
 data = crawlerTools.cleanDF(data)
 data, offset = crawlerTools.identfyMastOffset(data)
 
-start = data['time'].iloc[0]
+start = data['time'].iloc[0].to_pydatetime()
 print(f"\n\n Working on date {start}")
-end = data['time'].iloc[-1]  #DT.timedelta(days=1)
+end = data['time'].iloc[-1].to_pydatetime()  #DT.timedelta(days=1)
 go = getDataFRF.getObs(start, end)
-wave = go.getWaveData()
+wave = go.getWaveData('8m-array')
 print(f"time: {wave['time'][0].strftime('%Y-%m-%d')}, Hs: {wave['Hs'][0]:.2f}, Tp: {1/wave['peakf'][0]:.2f}, "
       f"Dm: {wave['waveDm'][0]:.02f}")
 
 # topo = go.getLidarDEM()  # get topo data
-bathy = go.getBathyTransectFromNC(method=0) #get bathy data
+surveyFname = "/data/FRF/geomorphology/elevationTransects/survey/FRF_geomorphology_elevationTransects_survey_20220314.nc"
+bathy = go.getBathyTransectFromNC(fname=surveyFname, forceReturnAll=False) #get bathy data
 bathy = pd.DataFrame.from_dict(bathy)
 fname = None
 topo = None
 
+#
 # # now rotate translate for orientation
-# # data_og = crawlerTools.TranslateOnly_Wrong(data.copy(), offset)
 data = crawlerTools.rotateTranslatePoints(data, offset)
 if data is None:
     print(f'skipping {fname} no good data\n--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=')
@@ -61,8 +63,16 @@ if data is None:
 fnameSave = 'data/repeatabilityTest2DataCrawler.pickle'
 pickle.dump(data,open(fnameSave, 'wb'))
 
-data = pd.read_csv("repeatabilitydemo.csv")  # load matthew's output csv with unique profile numbers
-data['time'] = [DT.datetime.strptime(data['time'][i], "%Y-%m-%d %H:%M:%S") for i in range(len(data['time']))]
+# do some logic here to see if files are exisiting of profile numbers are good
+fnameLoad = 'data/RepeatabilityTest2Transects.xlsx'  # test 2
+fnameLoad = 'data/iso3.xlsx' # tst 3
+if os.path.exists(fnameLoad):
+    data = pd.read_excel(fnameLoad)
+    # data = pd.read_excel('data/RepeatabilityTest2Transects.xlsx')
+
+    # this is for repeatability test #1
+    #data = pd.read_csv("repeatabilitydemo.csv")  # load matthew's output csv with unique profile numbers
+    data['time'] = [DT.datetime.strptime(data['time'][i], "%Y-%m-%d %H:%M:%S") for i in range(len(data['time']))]
 # quick comparison plots
 crawlerPlots.bathyEnvalopeComparison(GPSfname, data, bathy)
 fname = os.path.join(os.path.dirname(GPSfname), ''.join(os.path.basename(GPSfname).split('.')[0])+
@@ -71,7 +81,7 @@ crawlerPlots.bathyPlanViewComparison(fname, data, bathy, topo, plotShow=True)
 go2 = getDataFRF.getObs(data['time'].iloc[0].to_pydatetime(), data['time'].iloc[-1].to_pydatetime())
 wl = go2.getWL()
 # only find the profile that is near the crawler data
-idxRepeatability = (bathy['bathyprofileNumber'] < 375) & (bathy['bathyprofileNumber']> 355)
+idxRepeatability = (bathy['profileNumber'] < 450) & (bathy['profileNumber']> 400)
 bathy = bathy[idxRepeatability]
 ## remove the part of the cralwer data where the vehicle approaches first way point
 idxCrawl = data['time'] > DT.datetime(2022, 1, 13, 15, 18, 30)
@@ -103,14 +113,15 @@ xFRFbase = np.arange(50,310, 1)
 f = interpolate.interp1d(bathy['xFRF'], bathy['elevation'], kind='linear',
                          bounds_error=False, fill_value=np.nan)
 surveyE = f(xFRFbase)
-plt.style.use('seaborn-paper')
+plt.style.use('fivethirtyeight')
+plt.style.use('seaborn')
 ########################################
 # ax1 = plt.subplot2grid((3,1), (0,0))
 fig, axs = plt.subplots(4, 1, constrained_layout=True, figsize=[10,6])
 ax1, ax2, ax3, ax4 = axs[0], axs[1], axs[2], axs[3]
-ax2.plot(bathy['xFRF'], bathy['yFRF'], ms=surveyMS, marker='.', linestyle='', color='k')
+# ax2.plot(bathy['xFRF'], bathy['yFRF'], ms=surveyMS, marker='.', linestyle='', color='k')
 # ax2 = plt.subplot2grid((3,1), (1,0), sharex=ax1)
-ax1.plot(xFRFbase, surveyE, 'k', linewidth=0.25, label='Survey')
+# ax1.plot(xFRFbase, surveyE, 'k', linewidth=0.25, label='Survey')
 ax1.plot(xFRFbase, np.ones_like(xFRFbase) * wl['predictedWL'].mean(), 'b', linestyle=':', label='Water Level')
 _, _, _, m = ax1.hist2d(data['xFRF'], data['elevation_NAVD88_m'],bins=[np.arange(91, 310, 1), np.arange(-4, 2, 0.1) ],
                         cmap='YlOrBr', norm=LogNorm())
@@ -121,27 +132,44 @@ ax1.legend()
 cbar = fig.colorbar(mappable=m, ax=ax1, location='top', use_gridspec=True)
 cbar.set_label('counts')
 # ax3 = plt.subplot2grid((3,1), (2,0), sharex=ax1)
-ax3.plot(xFRFbase, np.zeros_like(xFRFbase), 'k:')
+ax3.plot(xFRFbase, np.zeros_like(xFRFbase), 'k:', label='median')
+colors1 = plt.cm.winter_r(np.linspace(0, 1, int(len(data['profileNumber'].dropna().unique())/int(2))))
+colors2 = plt.cm.autumn_r(np.linspace(0, 1, int(len(data['profileNumber'].dropna().unique())/int(2))))
+ax3.legend()
 eleSave, surSave = [], []
-for profNum in np.unique(data['id']):
-    if profNum != -1:
-        idx = np.where(data['id'] == profNum)[0]
-        ax2.plot(data['xFRF'].iloc[idx], data['yFRF'].iloc[idx], ms=crawlerMS)
+
+for tt, profNum in enumerate(np.unique(data['profileNumber'].dropna())):
+    if (profNum != -1) & (not np.isnan(profNum)):
+        idx = np.where(data['profileNumber'] == profNum)[0]
+        if profNum < 410: # vechile is traveling seaward
+            ax2.plot(data['xFRF'].iloc[idx], data['yFRF'].iloc[idx], ms=crawlerMS, color=colors1[tt],
+                     linewidth=1.5)
+        else:
+            ax2.plot(data['xFRF'].iloc[idx], data['yFRF'].iloc[idx], ms=crawlerMS, color=colors2[tt%10], linewidth=1.5)
 
         xFRFnew = np.arange(data['xFRF'].iloc[idx].min(), data['xFRF'].iloc[idx].max(), 1)
         f = interpolate.interp1d(data['xFRF'].iloc[idx], data['elevation_NAVD88_m'].iloc[idx], kind='slinear',
                                  bounds_error=False, fill_value=np.nan)
         elev = f(xFRFbase)
-        residualZ = elev - surveyE
-        ax3.plot(xFRFbase, residualZ, label=f'interp_{profNum}')
+        residualZ = elev - medProfile #surveyE
+        if profNum < 410: # vechile is traveling seaward
+            ax3.plot(xFRFbase, residualZ, label=f'interp_{profNum}', color=colors1[tt], linewidth=1.5)
+        else:
+            ax3.plot(xFRFbase, residualZ, label=f'interp_{profNum}', color=colors2[tt%10],
+                     linewidth=1.5)
+            
         eleSave.append(elev)
         surSave.append(surveyE)
 
-ax4.plot(xFRFbase, np.nanstd(np.array(eleSave), axis=0), label='scatter')
+# medProfile = np.median(np.array(elevSave), axis=0) ???
+ax4.plot(xFRFbase, np.nanstd(np.array(eleSave)[0:20:2], axis=0), label='north cluster', linewidth=1.5)
+ax4.plot(xFRFbase, np.nanstd(np.array(eleSave)[1:20:2], axis=0), label='south cluster', linewidth=1.5)
+ax4.legend()
 # ax4.plot(xFRFbase, np.nanmean(np.array(eleSave) - np.array(surSave), axis=0), label='bias')
 
 ax1.set_ylabel('yFRF [m]')
 ax1.set_xlim([90, 325])
+ax1.set_ylim([-4.5, 2])
 ax2.set_ylabel('elevation [m]')
 ax2.set_xlim([90, 325])
 ax3.set_xlim([90, 325])
@@ -150,7 +178,7 @@ ax4.set_xlim([90, 325])
 ax3.set_ylabel('residual [m]')
 ax4.set_xlabel('xFRF [m]')
 fig.axes[0].text(92.5, 1, 'a)')
-fig.axes[1].text(92.5, 372, 'b)')
+fig.axes[1].text(92.5, 415, 'b)')
 fig.axes[2].text(92.5, 0.2, 'c)')
 fig.axes[3].text(92.5, 0.07, 'd)')
 from testbedutils import sblib as sb

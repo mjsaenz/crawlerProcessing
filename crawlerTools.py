@@ -229,16 +229,30 @@ def interpDataFrames(timeStamp2Interp, df, verbose=False): #  = IMUdf , timeStam
     return out
 
 def identfyMastOffset(data, **kwargs):
+    """ searches for location of "beanch mark" assumed to be at the FRF, then will isolate that to measure the GPS
+    antenna's height from ground.
+    
+    Args:
+        data: pandas data frame of loaded crawler data
+        **kwargs:
+            "plotting": turns plutton on/off (default=False)
+
+    Returns:
+
+    """
     plotting = kwargs.get('plotting', False)
     coordWindow = 1 # meter in y and x to search for "benchmarkpoint"
     # xWindow = [4, 6] # meters in the x direction
     #yWindow = [515, 517]
+    # FRF benchmark in lat/lon
     benchmarkLocation = [-75.751422, 36.182032]
     benchmarkElevation = 5.222 #
     # Identify points that are west of 10 m in FRF x
     coord = gp.FRFcoord(benchmarkLocation[0], benchmarkLocation[1], coordType='LL')
     df_benchMark = data.query(f'xFRF > {coord["xFRF"]-coordWindow} & xFRF < {coord["xFRF"]+coordWindow} '
                               f'& yFRF < {coord["yFRF"]+coordWindow} & yFRF > {coord["yFRF"]-coordWindow}')
+    if df_benchMark.empty:
+        return data, None
     # now split between the two samples (start/end)
     idxSplit = np.argwhere(np.diff(df_benchMark['UNIX_timestamp']) > 5).squeeze().astype(int) + 1
     start = df_benchMark.iloc[:int(idxSplit)]
@@ -432,7 +446,6 @@ def loadCorrectEllipsoid(fname, geoidFile='g2012bu8.bin', plot=False):
     data['elevation_NAVD88_m'] = data.ellipsoid - geoidHeight
     if plot is True:
         data.plot.scatter('longitude', 'latitude', c='elevation_NAVD88_m', cmap='ocean')
-    
     return data
 
 def cleanDF(data, acceptableFix=4):

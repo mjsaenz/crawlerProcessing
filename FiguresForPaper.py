@@ -10,9 +10,8 @@ fpath = "plots/DunexPres"
 logStats = pickle.load(open("logStats.pkl", 'rb'))
 # unpack my data
 datestring, residualsE, surveyE, newXE, crawlerE, surveyprofileNumber, statsAll, newX, survey, crawler, residuals, \
-pitchE, \
-rollE, surveyVessel, surveyVesselE, subBAll, subCAll = [], [], [], [], [], [], [],  [], [], [], [], [], [], [], [], \
-                                                      [], []
+pitchE,  rollE, surveyVessel, surveyVesselE, subBAll, subCAll = [], [], [], [], [], [], [],  [], [], [], [], [], [], \
+                                                                [], [],  [], []
 surveyE_purged, crawlerE_purged= [], []
 for i in range(len(logStats)):
     datestring.append(logStats[i][0])
@@ -40,38 +39,51 @@ for i in range(len(logStats)):
 statsT = sb.statsBryant(surveyE, crawlerE)
 stats_purged = sb.statsBryant(surveyE_purged, crawlerE_purged)
 print(f" bias:{statsT['bias']:.3f}m, RMSE: {statsT['RMSE']:.3f}m, RMSE_demeaned: {statsT['RMSEdemeaned']:.3f}m")
-print(f" PURGED\nbias:{stats_purged['bias']:.3f}m, RMSE: {stats_purged['RMSE']:.3f}m, RMSE_demeaned: "
+print(f" PURGED bias:{stats_purged['bias']:.3f}m, RMSE: {stats_purged['RMSE']:.3f}m, RMSE_demeaned: "
       f"{stats_purged['RMSEdemeaned']:.3f}m")
 
 #########################################
 #exploreable plots
-plt.style.use('seaborn-paper')
+fontsize=12
+plt.style.use('fivethirtyeight')
 fig, axs = plt.subplots(1,2, constrained_layout=True, figsize=[12,6]) #2grid((2,1), (0,0))
 ax1, ax2 = axs[0], axs[1]
 _,_,_,mca = ax1.hist2d(surveyE, crawlerE, bins=200, cmap='YlOrBr', norm=LogNorm())
 a=fig.colorbar(mca, ax=ax1, location='right')
-a.set_label('counts');
+a.ax.tick_params(labelsize=12, size=5)
+a.set_label('counts', fontsize=fontsize);
 ax1.text(-2.75, 2.5, 'a)')
 # plt.title('depth comparison')
 ax1.plot([-3, 3], [-3,3], color='k', linestyle='-', linewidth=1)
-ax1.set_xlabel('survey elevation NAVD88 [m]')
-ax1.set_ylabel('crawler elevation NAVD88 [m]')
+ax1.set_xlabel('Survey Elevation NAVD88 [m]')
+ax1.set_ylabel('Crawler Elevation NAVD88 [m]')
 
-ax2.hist(residualsE, bins=100);
+ax2.hist(residualsE, bins=100)
 ax2.text(-0.95, 505, 'b)')
 ax2.set_xlabel('residuals [m]')
 ax2.set_xlim([-1,1])
-plt.savefig(os.path.join('plots/PaperInfoPlots', "SkillComparison.eps"), format='eps')
+# ax1.tick_params(labelbottom=False, bottom=False)
+ax1.tick_params(axis='both', labelsize=12)
+ax2.tick_params(axis='both', labelsize=12)
+# 'length', 'direction', 'left', 'bottom', 'right', 'top', \
+# 'labelleft', 'labelbottom', 'labelright', 'labeltop', 'labelrotation'
+plt.savefig(os.path.join('plots/PaperInfoPlots', "SkillComparison.pdf"), format='pdf')
 plt.close()
 #####################################################
 print(f" bias:{statsT['bias']:.3f}m, RMSE: {statsT['RMSE']:.3f}m, RMSE_demeaned: {statsT['RMSEdemeaned']:.3f}m")
 
-
+##########################################################################
+##########################################################################
+###################example "good profiles"################################
+##########################################################################
+##########################################################################
+##########################################################################
 ################### single pROFILE ################
 ### good profile example
-profile, datestringToCompare = 777, '20211019'
 profile, datestringToCompare =  869, '20211019'
 profile, datestringToCompare = 686, '20211024'
+profile, datestringToCompare = 777, '20211019'
+
 ######## pre processing
 idx = np.argwhere((np.array(datestring) == datestringToCompare) & (np.array(surveyprofileNumber) == profile)).squeeze()
 subC = subCAll[idx]
@@ -81,7 +93,7 @@ xStart = max(subC['xFRF'].min(), subB['xFRF'].min())
 xStop = min(max(subC['xFRF']), max(subB['xFRF']))
 profileNumber = np.unique(subB['profileNumber']).squeeze()
 date = subB['time'].iloc[0].date().strftime("%Y-%m-%d")
-saveFname = os.path.join('plots/PaperInfoPlots', f'goodProfile_{date}_{profileNumber}.eps')
+saveFname = os.path.join('plots/PaperInfoPlots', f'goodProfile_{date}_{profileNumber}.pdf')
 # title = f"Comparison on {date} of profile number {profileNumber}"
 ############3
 dx =  1       #np.min(np.diff(subB['xFRF'].squeeze()).mean(), np.median(np.diff(subC['xFRF'])) )
@@ -95,17 +107,19 @@ totalRollInterpY = np.interp(newX, subC['xFRF'], subC.attitude_roll_deg)
 alongshoreResidual = crawlInterpY - surveyInterpY
 
 #############
-surveyMS = 5
+surveyMS = 7
 crawlerMS = 12
 yWindow = 15
 ############
 plt.figure(figsize=[14,5])
 ax1 = plt.subplot2grid((1,4), (0,0), colspan=3)  #plt.subplot(211)
+ax1.plot(newX, surveyInterp, 'k.', ms=surveyMS, label='survey')
+
 c = ax1.scatter(newX, crawlInterp, c=totalPitchInterpX, s=25, #vmin=-8, vmax=8,
                 label='crawler',
                 cmap='Spectral')
-ax1.plot(newX, surveyInterp, 'k.', ms=surveyMS, label='survey')
 cbar = plt.colorbar(c, ax=ax1)
+cbar.ax.tick_params(axis='both', labelsize=12)
 cbar.set_label('pitch [$\degree$]')
 ax1.legend()
 ax1.set_xlabel('xFRF [m]')
@@ -125,14 +139,16 @@ ax1.text(95, 0.75, 'a)')
 # cbar.set_label('Roll [$\degree$]')
 
 ax3 = plt.subplot2grid((1,4), (0, 3)) # plt.subplot(224)
-c = ax3.scatter(surveyInterp, crawlInterp, c=np.abs(alongshoreResidual), s=10,# vmin=0, vmax=10,
+c = ax3.scatter(surveyInterp, crawlInterp, c=np.abs(alongshoreResidual), s=25,# vmin=0, vmax=10,
                 cmap='inferno', label='Translate/Rotate')
 
-ax3.plot([-3, 2], [-3, 2], 'k--')
-ax3.set_xlabel('elevation survey')
-ax3.set_ylabel('elevation crawler')
+ax3.plot([-3, 2], [-3, 2], 'k--', linewidth=1)
+ax3.set_xlabel('Elevation Survey [m]')
+ax3.set_ylabel('Elevation Crawler [m]')
 cbar = plt.colorbar(c, ax=ax3)
 cbar.set_label('alonshore residual $[m]$')
+cbar.ax.tick_params(axis='both', labelsize=12)
+
 ax3.set_ylim([-2.25, 0.8])
 ax3.set_xlim([-2.25, 0.8])
 ax3.text(-2.2, 0.6, 'b)')
@@ -140,10 +156,12 @@ ax3.text(-2.2, 0.6, 'b)')
 # ax4.set_axis_off()
 # ax4.text(0, 0.5, f"Profile Statistics:\n\nRMSE: {stats['RMSEdemeaned']:.2f}[m]\nbias:{stats['bias']:.2f}[m]",
 #          fontsize=12)
+ax1.tick_params(axis='both', labelsize=12)
+ax3.tick_params(axis='both', labelsize=12)
 stats = sb.statsBryant(surveyInterp,crawlInterp)
 print(f"Profile Statistics:\n\nRMSE: {stats['RMSEdemeaned']:.2f}[m]\nbias:{stats['bias']:.2f}[m]")
-plt.tight_layout(rect=[0.01, 0.01, 0.99, 0.98])
-plt.savefig(saveFname, format='eps')
+plt.tight_layout(rect=[0.03, 0.01, 0.99, 0.98])
+plt.savefig(saveFname, format='pdf')
 ##########################################################################
 ##########################################################################
 ###################example "bad profiles"#################################
@@ -151,7 +169,7 @@ plt.savefig(saveFname, format='eps')
 ##########################################################################
 ##########################################################################
 #### Bad Data
-surveyMS = 5
+surveyMS = 7
 crawlerMS = 25
 profile, datestringToCompare =  91, '20211020'  # 15 cm
 profile, datestringToCompare = 731, '20211025'  # 17 cm
@@ -181,12 +199,13 @@ alongshoreResidual = crawlInterpY - surveyInterpY
 ### example "bad profiles"
 plt.figure(figsize=[14,5])
 ax1 = plt.subplot2grid((1,4), (0,0), colspan=3)  #plt.subplot(211)
+ax1.plot(newX, surveyInterp, 'k.', ms=surveyMS, label='survey')
 c = ax1.scatter(newX, crawlInterp, c=totalPitchInterpX, s=crawlerMS, #vmin=-8, vmax=8,
                 label='crawler',
                 cmap='Spectral')
-ax1.plot(newX, surveyInterp, 'k.', ms=surveyMS, label='survey')
 cbar = plt.colorbar(c, ax=ax1)
 cbar.set_label('pitch [$\degree$]')
+cbar.ax.tick_params(axis='both', labelsize=12)
 ax1.legend()
 ax1.set_xlabel('xFRF [m]')
 ax1.set_ylabel('elevation [m]')
@@ -198,7 +217,8 @@ ax11 = plt.subplot2grid((1,4), (0, 3), sharey=ax1) # plt.subplot(224)
 c = ax11.scatter(surveyInterp, crawlInterp, c=np.abs(alongshoreResidual), s=crawlerMS,# vmin=0, vmax=10,
                 cmap='inferno', label='Translate/Rotate')
 
-ax11.plot([-3, 3], [-3, 3], 'k--')
+
+ax11.plot([-3, 2], [-3, 2], 'k--', linewidth=1)
 ax11.set_xlabel('elevation survey')
 ax11.set_ylabel('elevation crawler')
 cbar = plt.colorbar(c, ax=ax11)
@@ -208,7 +228,9 @@ ax11.set_xlim(ax11.get_ylim())
 ax11.text(-2.8, 2.2, 'b)')
 stats = sb.statsBryant(surveyInterp,crawlInterp)
 print(f"Profile Statistics:\n\nRMSE: {stats['RMSEdemeaned']:.2f}[m]\nbias:{stats['bias']:.2f}[m]")
-plt.tight_layout(rect=[0.01, 0.01, 0.99, 0.98])
+ax1.tick_params(axis='both', labelsize=12)
+ax11.tick_params(axis='both', labelsize=12)
+plt.tight_layout(rect=[0.03, 0.01, 0.99, 0.98])
 plt.savefig(saveFname, format='eps')
 
 ## now recompute stats
@@ -316,21 +338,24 @@ plt.title('CRAB in red, LARC in blue')
 
 ###############################
 allSurvey, allCrawler = pickle.load(open("allCrawlerComparison.pkl", 'rb'))
-plt.style.use('seaborn-paper')
+plt.style.use('fivethirtyeight')
 plt.figure()
 
 bins, counts,_, surf = plt.hist2d(allCrawler['speed_over_ground_GPS'], allCrawler['NAVSoln_speed_over_ground'],
                                   bins=[np.arange(0, 1, .01), np.arange(0, 1, .01)], cmap='YlOrBr', norm=LogNorm())
 cbar = plt.colorbar(surf)
 cbar.set_label('counts')
-plt.plot([0,1], [0,1], linestyle=':')
+cbar.ax.tick_params(labelsize=12)
+plt.plot([0,1], [0,1], linestyle=':', linewidth=2)
 plt.ylim([0,1])
 plt.xlim([0, 1])
 plt.xlabel('measured speed $m/s$')
 plt.ylabel('Navigation Solution speed $m/s$')
 stats = sb.statsBryant(allCrawler['speed_over_ground_GPS'], allCrawler['NAVSoln_speed_over_ground'])
-print(f" RMSE: {stats['RMSE']:.2f} bias: {stats['bias']:.2f}")
-plt.savefig('plots/PaperInfoPlots.eps', format='eps')
+print(f" RMSE: {stats['RMSE']:.2f} bias: {stats['bias']:.2f} R2: {stats['r2']:.2f}")
+plt.tick_params(axis='both', labelsize=12)
+plt.tight_layout()
+plt.savefig('plots/PaperInfoPlots/speedComparison.eps', format='eps')
 
 ############# where's the data from
 plt.figure();
