@@ -29,17 +29,24 @@ import math
 import pickle
 import xlsxwriter
 
+
 def transectSelection(data):
     """
+      Args:
+          data: dataframe containing crawler transect data, to be modified with isTransect and profileNumber columns
 
-        Args:
-
-        Returns:
-
-        """
+      Returns:
+          data: input dataframe with columns isTransect and profileNumber added, isTransect is a boolean denoting
+          whether a point is part of a transect, profileNumber is a float to designate the transect a point is a part of
+          typically the mean FRFy coordinate of the transect, points not part of a transect are assigned a profileNumber
+          of Nan
+    """
+    # added columns for isTransect boolean and profileNumber float to data dataframe
     data["isTransect"] = [False]*data.shape[0]
     data["profileNumber"] = [float("nan")]*data.shape[0]
+    # create copy of data for display, points are removed from the frame once identified as part of a transect
     dispData = data.copy(deep=True)
+    # main loop for identifying transects, continues to allow for selections while user inputs y/Y
     transectIdentify = input("Do you want to select a transect? (Y/N):")
     while transectIdentify == "Y" or transectIdentify == "y":
 
@@ -50,38 +57,33 @@ def transectSelection(data):
         print("If more or less than 2 points are selected, no changes will be made")
         print("Each graph's colorscale represents the y axis of the other graph, i.e. the colorscale of the xy graph is time, and vice versa")
         print("Select the transect using only 1 graph at a time")
-        # plt.figure()
+        # displays plots of two subplots, one with x vs y colored in time and one with time vs y colored in x
         fig, axs = plt.subplots(2)
         fig.suptitle("Transects xFRF (top) and time (bottom) vs yFRF ")
         axs[0].scatter(dispData["xFRF"], dispData["yFRF"], c=dispData["time"], cmap='hsv', s=1)
         axs[0].set(xlabel="FRF Coordinate System X (m)", ylabel = "FRF Coordinate System Y (m)")
-        # plt.ylabel("FRF Coordinate System Y (m)")
-        # axs[1].scatter(dispData["xFRF"], dispData["UNIX_timestamp"], c=dispData["yFRF"], cmap='hsv', s=1)
-        # axs[1].set(xlabel="FRF Coordinate System X (m)", ylabel = "UNIX Timestamp (seconds)")
+
         axs[1].scatter(dispData["UNIX_timestamp"], dispData["yFRF"], c=dispData["xFRF"], cmap='hsv', s=1)
         axs[1].set(xlabel="UNIX Timestamp (seconds)", ylabel = "FRF Coordinate System Y (m)")
-        # plt.ylabel("UNIX Timestamp (seconds)")
         nodes = plt.ginput(-1, 0)
-        # plt.show()
         print("Selected Points: ")
         print(nodes)
 
+        # ginput returns list of tuples of selected coordinates, each is in its graph's proper scale
         if len(nodes) == 2:
             # false means ycoord is yFRF, true means UNIX Timestamp
             isTime = [False, False]
-            # isTime[0] = nodes[0][1] > 1500
-            # isTime[1] = nodes[1][1] > 1500
             isTime[0] = nodes[0][0] > 1500
             isTime[1] = nodes[1][0] > 1500
             if isTime[0] == isTime[1]:
                 endpts = []
+                # each node is matched to the closest point in the dispData dataframe
                 for x in range(len(nodes)):
                     curr = nodes[x]
                     prevDist = float('inf')
                     closest = tuple()
                     for y in range(dispData.shape[0]):
                         if isTime[x]:
-                            # dist = math.sqrt((dispData["UNIX_timestamp"][y] - curr[1]) ** 2 + (dispData["xFRF"][y] - curr[0]) ** 2)
                             dist = math.sqrt(
                                 (dispData["UNIX_timestamp"][y] - curr[0]) ** 2 + (dispData["yFRF"][y] - curr[1]) ** 2)
                         else:
@@ -99,6 +101,7 @@ def transectSelection(data):
                     else:
                         isEndPt.append(False)
                 dispData["endPt"] = isEndPt
+                # endPt column identifies where each transect starts and stops
 
                 # identify transect within dispdata
                 isTransect = []
@@ -118,6 +121,7 @@ def transectSelection(data):
 
                 # assign id to current transect
                 currTransect = dispData.loc[dispData["isTransect"] == True]
+                # remove newly assigned transect from display dataframe
                 dispData = dispData.loc[dispData["isTransect"] == False]
                 dispData = dispData.reset_index(drop=True)
                 meanY = statistics.mean(currTransect["yFRF"])
@@ -131,8 +135,8 @@ def transectSelection(data):
                 currTransect['profileNumber'] = currTransect['profileNumber'].replace([float("nan")], transectID)
 
                 print("Updating dataframe...")
-                # update primary dataframe, slowest part of code
-                # search once to find first timestamp
+                # update primary dataframe
+                # search once to find first timestamp, iterate afterwards
                 startTime = currTransect["UNIX_timestamp"].iloc[0]
                 endTime = currTransect["UNIX_timestamp"].iloc[currTransect.shape[0] - 1]
                 firstI = 0
@@ -145,10 +149,13 @@ def transectSelection(data):
                     data.loc[x + firstI, "profileNumber"] = transectID
                     data.loc[x + firstI, "isTransect"] = True
             else:
+                # ignore selected points if from different plots
                 print("Selected points from different plots. Discarding selected points.")
         else:
+            # ignore selected points if more or less than 2 selected
             print("Selected more or less than 2 points. Discarding selected points.")
 
+        # display selected transects overlayed over all points, colored by profile number
         print("Displaying current progress. Close the window to continue.")
         transectsOnly = data.loc[data["isTransect"] == True]
         plt.figure()
@@ -163,6 +170,7 @@ def transectSelection(data):
         plt.show()
         transectIdentify = input("Do you want to select another transect? (Y/N):")
 
+    # prompts for saving charts, excel and pickle
     title = input("What would you like to title the charts?: ")
     filenames = input("What would you like to name the files? (Type null to not save file): ")
     if filenames != "null":
