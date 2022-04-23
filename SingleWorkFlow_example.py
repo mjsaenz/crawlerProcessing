@@ -34,7 +34,7 @@ def crawlerProcessingWorkFlow(path2GPSfname):
     print(f"\n\n Working on date {start}")
     # # now rotate translate for orientation
     data = crawlerTools.rotateTranslatePoints(data, offset)
-    print('  TODO: Add Matthew''s Line ID tool here')
+    data = crawlerTools.transectSelection(data)
     print('  TODO: look for pickle file, if exists, open check for line numbers')
     
     data['time'] = [DT.datetime.strptime(data['time'][i], "%Y-%m-%d %H:%M:%S") for i in range(len(data['time']))]
