@@ -9,7 +9,7 @@ import crawlerTools
 import datetime as DT
 import pickle
 import glob
-
+from subprocess
 ###############################
 import py2netCDF
 
@@ -17,7 +17,23 @@ dateString = '20220113' #'20211020'
 savePath = "plots/DUNEXcomparisons"
 GPSfname = "/data/20220322/20220322_192544.302_telemetry.gssbin_GPS_STAT_2.csv"
 
-def crawlerProcessingWorkFlow(path2GPSfname):
+def crawlerProcessingWorkFlow(path2GPSfname, **kwargs):
+    """
+    
+    Args:
+        path2GPSfname:  Folder path to look for bin files
+        **kwargs:
+            "binProcessor": path to bin executable (default="/usr/local/bin/gsbin-log-processor")
+    
+    Returns:
+
+    """
+    
+    gsBinProcessorLocation = kwargs.get('binProcessor', "/usr/local/bin/gsbin-log-processor")
+    flist = glob.glob(path2GPSfname + "*.gssbin")
+    for fname in flist:
+        os.system(f"{gsBinProcessorLocation} --logfile {fname}")
+    
     flist = glob.glob(path2GPSfname + "*GPS_STAT_2.csv")
     GPSfname = flist[0]
     ###############################################
@@ -51,3 +67,9 @@ def crawlerProcessingWorkFlow(path2GPSfname):
     netCDFFileName = os.path.join(path2GPSfname, f"FRF_geomorphology_elevationTransects_survey_{dateString}.nc")
     py2netCDF.makenc_generic(netCDFFileName, "yaml_files/transect_Global.yml", "yaml_files/transect_variables.yml",
                              data)
+
+crawlerProcessingWorkFlow('/data/20220322/')
+
+if __name__ == '__main__':
+    
+    crawlerProcessingWorkFlow()
