@@ -1,5 +1,7 @@
 """ This code analyses a single profile repeatedly.  this is for the paper """
 import matplotlib
+import testbedutils.sblib
+
 matplotlib.use('TkAgg')
 import sys, os
 import crawlerPlots
@@ -53,7 +55,7 @@ def crawlerProcessingWorkFlow(path2GPSfname, **kwargs):
         data = crawlerTools.transectSelection(data)
         pickle.dump(open(fnameSave, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
     print('  TODO: look for pickle file, if exists, open check for line numbers')
-        
+
     data['time'] = [DT.datetime.strptime(data['time'][i], "%Y-%m-%d %H:%M:%S") for i in range(len(data['time']))]
     
     # quick comparison plots for QA/QC
@@ -69,6 +71,8 @@ def crawlerProcessingWorkFlow(path2GPSfname, **kwargs):
                              data)
     print('write mast height used for the day as attribute somewhere')
     print('TarFiles When Done')
+    tarlist = glob.glob(os.path.join(baseDir, fnameBase, "*.csv"))
+    testbedutils.sblib.myTarMaker(tarOutFile=os.path.join(baseDir,fnameBase), fileList=tarlist)
 
 crawlerProcessingWorkFlow("/home/crawls/gss_logs/20220316")
 
