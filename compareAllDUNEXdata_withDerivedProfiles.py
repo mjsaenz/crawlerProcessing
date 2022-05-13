@@ -52,9 +52,9 @@ flist= ["/home/spike/data/20211005/20211005_192624.153_telemetry.gssbin_GPS_STAT
 logStats = []
 crossShoreFile = open('/home/spike/repos/crawlerProcessing/plots/PaperInfoPlots/crossshoreOffset.txt', 'w')
 crossShoreFile.write('time,Hs, Tp, Dm, profile, cross-shore offset xGPS-xPress\n')
-
+# which py module generates this file?
 allSurvey, allCrawler = pickle.load(open("allCrawlerComparison.pkl", 'rb'))
-
+#
 saveCrawler, saveSurvey = allCrawler.iloc[:0,:].copy(), allSurvey.iloc[:0, :].copy()
 
 for GPSfname in flist:
@@ -223,7 +223,7 @@ for GPSfname in flist:
                                             f"_{profile.astype(int):04}")
             speedComparisonPlot(subC, wave, profile, fnameOut=fnameOut)
             
-            stats, newX, surveyInterp, crawlInterp, pitch, roll = crawlerPlots.profileCompare(subC=subC, subB=subB,
+             stats, newX, surveyInterp, crawlInterp, pitch, roll = crawlerPlots.profileCompare(subC=subC, subB=subB,
                                                             fname=fOut, plotRaws=False)# subC_og=subC_og)
             logStats.append((GPSfname.split('/')[4], profile, stats, newX, surveyInterp, crawlInterp, pitch, roll,
                              subB['surveyVessel'].iloc[0], subC, subB))

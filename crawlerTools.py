@@ -11,23 +11,20 @@ from testbedutils import sblib as sb
 from scipy.spatial import cKDTree
 from testbedutils import geoprocess as gp
 import statistics
-from tkinter import *
 import matplotlib
-matplotlib.use('TkAgg')
+try:
+    matplotlib.use('TkAgg')
+except ImportError:
+    pass
 from matplotlib import pyplot as plt
 import pandas as pd
 import pyproj
 import numpy as np
-import crawlerFunctions as cf
-from datetime import datetime
-import utm
 from pygeodesy import geoids
 import glob
 import os
-from getDataFRF import getObs
+from getdatatestbed import getDataFRF
 import math
-import pickle
-import xlsxwriter
 
 
 def transectSelection(data):
@@ -58,13 +55,21 @@ def transectSelection(data):
         print("Each graph's colorscale represents the y axis of the other graph, i.e. the colorscale of the xy graph is time, and vice versa")
         print("Select the transect using only 1 graph at a time")
         # displays plots of two subplots, one with x vs y colored in time and one with time vs y colored in x
-        fig, axs = plt.subplots(2)
+        fig = plt.figure()
         fig.suptitle("Transects xFRF (top) and time (bottom) vs yFRF ")
-        axs[0].scatter(dispData["xFRF"], dispData["yFRF"], c=dispData["time"], cmap='hsv', s=1)
-        axs[0].set(xlabel="FRF Coordinate System X (m)", ylabel = "FRF Coordinate System Y (m)")
-
-        axs[1].scatter(dispData["UNIX_timestamp"], dispData["yFRF"], c=dispData["xFRF"], cmap='hsv', s=1)
-        axs[1].set(xlabel="UNIX Timestamp (seconds)", ylabel = "FRF Coordinate System Y (m)")
+        shape=(4,6)
+        
+        ax0 = plt.subplot2grid(shape, (0,0), colspan=2, rowspan=5)
+        ax0.scatter(dispData["xFRF"], dispData["yFRF"], c=dispData["time"], cmap='hsv', s=1)
+        ax0.set(xlabel="xFRF [m]", ylabel = "yFRF [m]")
+        
+        ax1 = plt.subplot2grid(shape, (0, 2), colspan=6, rowspan=2)
+        ax1.scatter(dispData["UNIX_timestamp"], dispData["xFRF"], c=dispData["yFRF"], cmap='hsv', s=1)
+        ax1.set(xlabel="UNIX Timestamp (seconds)", ylabel = "xFRF (m)")
+        ax2 = plt.subplot2grid(shape, (2, 2), colspan=6, rowspan=2, sharex=ax1)
+        ax2.scatter(dispData["UNIX_timestamp"], dispData["yFRF"], c=dispData["yFRF"], cmap='hsv', s=1)
+        ax2.set(xlabel="UNIX Timestamp (seconds)", ylabel = "yFRF (m)")
+        plt.tight_layout()
         nodes = plt.ginput(-1, 0)
         print("Selected Points: ")
         print(nodes)
@@ -126,10 +131,10 @@ def transectSelection(data):
                 dispData = dispData.reset_index(drop=True)
                 meanY = statistics.mean(currTransect["yFRF"])
                 print("Close the window to continue.")
-                plt.figure()
-                plt.hist(currTransect["yFRF"])
-                plt.title("FRFy coords of selected transect")
-                plt.show()
+                # plt.figure()
+                # plt.hist(currTransect["yFRF"])
+                # plt.title("FRFy coords of selected transect")
+                # plt.show()
                 print("Mean FRFy coord of selected transect: ", meanY)
                 transectID = float(input("What profile number would you like to assign this transect? (float type): "))
                 currTransect['profileNumber'] = currTransect['profileNumber'].replace([float("nan")], transectID)
@@ -574,6 +579,8 @@ def rotateTranslatePoints(data, offset, **kwargs):
          
     """
     verbose=kwargs.get('verbose', False)
+    FRF = kwargs.get('FRF', True)
+    
     data.rename(columns={'xFRF': 'xFRF_GPS', 'yFRF': 'yFRF_GPS', 'elevation_NAVD88_m': 'elevation_NAVD88_m_GPS'},
                 inplace=True)
     if ('attitude_pitch_deg' not in data.keys()) & ('attitude_roll_deg' not in data.keys()) & ('attitude_heading_deg'
@@ -588,6 +595,9 @@ def rotateTranslatePoints(data, offset, **kwargs):
         pitch_i = data['attitude_pitch_deg'].iloc[idx]
         roll_i = data.attitude_roll_deg.iloc[idx]
         yaw_i =  data.attitude_heading_deg.iloc[idx]
+        if FRF is True:
+            yaw_i = yaw_i - 69.97  # offset from true north of FRF coordinate system (from north in stateplane)
+        
         #translate = np.ones_like(roll) * offset
         newX, newY, newZ = RotateTranslate( vYaw=yaw_i, vPitch=pitch_i, vRoll=roll_i, Gxv=0, Gyv=0, Gzv=-offset,
                                             Gxw=x, Gyw=y, Gzw=z, verbose=verbose)
