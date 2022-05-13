@@ -18,13 +18,23 @@ except ImportError:
     pass
 from matplotlib import pyplot as plt
 import pandas as pd
-import pyproj
+# import pyproj
 import numpy as np
 from pygeodesy import geoids
 import glob
 import os
 from getdatatestbed import getDataFRF
 import math
+# import crawlerFunctions as cf
+# from datetime import datetime
+# import utm
+from pygeodesy import geoids
+import glob
+import os
+# from getDataFRF import getObs
+import math
+# import pickle
+# import xlsxwriter
 
 
 def transectSelection(data):
@@ -398,7 +408,7 @@ def loadAndMergePriorityFiles(path2SingleFile, verbose=True, combineDays=True):
                 print(f"ERROR HERE: {fname}")
                 
             
-        if path2SingleFile == allFilesCollectedToday[0]: # if its the first file of the list
+        if path2SingleFile == allFilesCollectedToday[0]:  # if its the first file of the list
             allDataOut = data
         else:
             # allDataOut = allDataOut.append(data, verify_integrity=Flase)
@@ -407,6 +417,29 @@ def loadAndMergePriorityFiles(path2SingleFile, verbose=True, combineDays=True):
         allDataOut.sort_values('UNIX_timestamp', inplace=True, ignore_index=True)
         allDataOut.reset_index(inplace=True, drop=True)
     return allDataOut
+
+def loadAndConvertGSSfiles(gsBinProcessorLocation, path2GPSfname):
+    """Function loads and converts GSS bin files, but first checkes to see if (in the same folder there is already
+    existing csvs that match, it skips the conversion process if they ALL match
+
+    Args:
+        gsBinProcessorLocation: file path to the binary file conversion executable
+        path2GPSfname: path to look for files in
+
+    Returns:
+        None
+
+    """
+    # create list of csvs
+    csvList = glob.glob(os.path.join(path2GPSfname, "*.csv"))
+    baseCSV = [os.path.basename(i).split('.')[0] for i in csvList]  # collect timetamps
+    # create list of gssbin files
+    flistBin = glob.glob(os.path.join(path2GPSfname, "*.gssbin"))  # isolate file list
+    baseFname = [os.path.basename(i).split('.')[0] for i in flistBin]  #
+    if not (np.unique(baseCSV) == np.unique(baseFname)).all():
+        # find all of the raw GSS bin files then unpack them
+        for fname in flistBin:
+            os.system(f"{gsBinProcessorLocation} --logfile {fname}")
 
 
 def interpDataFrames(timeStamp2Interp, df, verbose=False): #  = IMUdf , timeStamp2Interp = data['UNIX_timestamp']

@@ -1,21 +1,26 @@
 from matplotlib import pyplot as plt
 import os
 import numpy as np
+import sys
+sys.path.append('')
 from testbedutils import sblib as sb
 
-def bathyEnvalopeComparison(fname, data, bathy):
+def bathyEnvalopeComparison(GPSfname, data, bathy, **kwargs):
     """makes an envelop for comparison of background data
     
     Args:
-        fname: input file name of crawler data
+        GPSfname: input file name of crawler data
         data: a data frame from crawlerTools.loadCorrectEllipsoid(
         bathy: a dictionary from getdatatestbed
+
+    Keyword Args:
+        "fname": the output file name (default: put it in the same folder as the GPSfname)
 
     Returns:
         None
 
     """
-    fnameBase = os.path.basename(fname).split('.')[0]
+    fnameBase = os.path.basename(GPSfname).split('.')[0]
     if bathy is None: bathyTime=None
     else: bathyTime = bathy['time'][0].date()
     ## now make plot
@@ -31,7 +36,7 @@ def bathyEnvalopeComparison(fname, data, bathy):
     plt.xlabel('xFRF')
     plt.ylabel('elevation $NAVD88$ [m]')
     
-    fname2 = os.path.join(os.path.dirname(fname), fnameBase+"_withLocalObs_XZ.png")
+    fname2 = kwargs.get('fname', os.path.join(os.path.dirname(GPSfname), f'bathyEnvelope_{fnameBase}.png'))
     plt.savefig(fname2)
     plt.close()
 
