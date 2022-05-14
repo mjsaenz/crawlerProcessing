@@ -25,13 +25,21 @@ savePath = "plots/DUNEXcomparisons"
 searchRadius = 15  # definition of comparison window between crawler and survey
 lineWindow = 10  # defines how much wiggle room to identify a crawler line from above y definitions.
 
-GPSfname = "/data/20220113/20220113_151649.080_telemetry.gssbin_GPS_STAT_2.csv"
-
-########################################################################
-# figure out start/end times gather background data
-
-GPSfname = "/data/20220316/20220316_133050.186_telemetry.gssbin_GPS_STAT_2.csv"
-GPSfname = "/data/20220322/20220322_192544.302_telemetry.gssbin_GPS_STAT_2.csv"
+# GPSfname = "/data/20220113/20220113_151649.080_telemetry.gssbin_GPS_STAT_2.csv"
+#
+# ########################################################################
+# # figure out start/end times gather background data
+#
+# GPSfname = "/home/spike/data/20211019/20211019_174456.103_telemetry.gssbin_GPS_STAT_2.csv"  # 0.69
+# GPSfname = "/home/spike/data/20210928/20210928_185238.280_telemetry.gssbin_GPS_STAT_2.csv"  # 0.77
+# GPSfname = "/home/spike/data/20211005/20211005_192624.153_telemetry.gssbin_GPS_STAT_2.csv"  # 0.65
+# GPSfname = "/home/spike/data/20211025/20211025_160206.428_telemetry.gssbin_GPS_STAT_2.csv"  # 0.76
+# GPSfname =  "/home/spike/data/20211018/20211018_152949.708_telemetry.gssbin_GPS_STAT_2.csv" # 1.22
+# GPSfname = "/home/spike/data/20211020/20211020_153003.335_telemetry.gssbin_GPS_STAT_2.csv"  # 0.74
+#
+#
+# GPSfname = "/data/20220316/20220316_133050.186_telemetry.gssbin_GPS_STAT_2.csv"
+GPSfname = "/data/20220322_backup/20220322_192544.302_telemetry.gssbin_GPS_STAT_2.csv"
 ###############################################
 ## first load file and correct elipsoid values
 data = crawlerTools.loadAndMergePriorityFiles(GPSfname, verbose=False, combineDays=True)
@@ -48,9 +56,9 @@ print(f"time: {wave['time'][0].strftime('%Y-%m-%d')}, Hs: {wave['Hs'][0]:.2f}, T
       f"Dm: {wave['waveDm'][0]:.02f}")
 
 # topo = go.getLidarDEM()  # get topo data
-surveyFname = "/data/FRF/geomorphology/elevationTransects/survey/FRF_geomorphology_elevationTransects_survey_20220314.nc"
-bathy = go.getBathyTransectFromNC(fname=surveyFname, forceReturnAll=False) #get bathy data
-bathy = pd.DataFrame.from_dict(bathy)
+# surveyFname = "/data/FRF/geomorphology/elevationTransects/survey/FRF_geomorphology_elevationTransects_survey_20220314.nc"
+# bathy = go.getBathyTransectFromNC(fname=surveyFname, forceReturnAll=False) #get bathy data
+# bathy = pd.DataFrame.from_dict(bathy)
 fname = None
 topo = None
 
@@ -61,68 +69,78 @@ if data is None:
     print(f'skipping {fname} no good data\n--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=')
     raise EnvironmentError("no Good Crawler Data")
 fnameSave = 'data/repeatabilityTest2DataCrawler.pickle'
-pickle.dump(data,open(fnameSave, 'wb'))
-
+pickle.dump(data, open(fnameSave, 'wb'))
+data = crawlerTools.transectSelection(data)
+fnameSave = 'data/repeatabilityTest2DataCrawler_withNegative70.pickle'
+pickle.dump(data, open(fnameSave, 'wb'))
 # do some logic here to see if files are exisiting of profile numbers are good
-fnameLoad = 'data/RepeatabilityTest2Transects.xlsx'  # test 2
-fnameLoad = 'data/iso3.xlsx' # tst 3
-if os.path.exists(fnameLoad):
-    data = pd.read_excel(fnameLoad)
+# fnameLoad = 'data/RepeatabilityTest2Transects.xlsx'  # test 2
+# fnameLoad = 'data/iso3.xlsx' # tst 3
+# if os.path.exists(fnameLoad):
+#     data = pd.read_excel(fnameLoad)
     # data = pd.read_excel('data/RepeatabilityTest2Transects.xlsx')
 
     # this is for repeatability test #1
     #data = pd.read_csv("repeatabilitydemo.csv")  # load matthew's output csv with unique profile numbers
-    data['time'] = [DT.datetime.strptime(data['time'][i], "%Y-%m-%d %H:%M:%S") for i in range(len(data['time']))]
+    # try:
+    #     data['time'] = [DT.datetime.strptime(data['time'][i], "%Y-%m-%d %H:%M:%S") for i in range(len(data['time']))]
+    # except TypeError:
+    #     pass
 # quick comparison plots
-crawlerPlots.bathyEnvalopeComparison(GPSfname, data, bathy)
-fname = os.path.join(os.path.dirname(GPSfname), ''.join(os.path.basename(GPSfname).split('.')[0])+
-                     "_withLocalObs_XY.png")
-crawlerPlots.bathyPlanViewComparison(fname, data, bathy, topo, plotShow=True)
+# crawlerPlots.bathyEnvalopeComparison(GPSfname, data, bathy)
+# fname = os.path.join(os.path.dirname(GPSfname), ''.join(os.path.basename(GPSfname).split('.')[0])+
+#                      "_withLocalObs_XY.png")
+# crawlerPlots.bathyPlanViewComparison(fname, data, bathy, topo, plotShow=True)
 go2 = getDataFRF.getObs(data['time'].iloc[0].to_pydatetime(), data['time'].iloc[-1].to_pydatetime())
 wl = go2.getWL()
 # only find the profile that is near the crawler data
-idxRepeatability = (bathy['profileNumber'] < 450) & (bathy['profileNumber']> 400)
-bathy = bathy[idxRepeatability]
-## remove the part of the cralwer data where the vehicle approaches first way point
-idxCrawl = data['time'] > DT.datetime(2022, 1, 13, 15, 18, 30)
-data = data[idxCrawl]
+# idxRepeatability = (bathy['profileNumber'] < 450) & (bathy['profileNumber']> 400)
+# bathy = bathy[idxRepeatability]
+
 # plot cross-shore envelope
 ##########
 crawlerMS, surveyMS = 1, 3
 ########################################################
-# plt.figure(figsize=(4,10))
-# ax1 = plt.subplot2grid((2,3), (1,0), colspan=2)
-# ax1.plot(bathy['xFRF'], bathy['yFRF'], ms=surveyMS, marker='.', linestyle='', color='k')
-# # ax1.hist2d(data['xFRF'], data['yFRF'], bins=[np.arange(91, 310, 1), np.arange(360, 375, 1)], cmap='YlOrBr',
-# #            norm=LogNorm())
-# ax1.plot(data['xFRF'], data['yFRF'], ms=crawlerMS, marker='.', linestyle='', color='r')
-# ax1.set_ylim([355, 375])
-# ax2 = plt.subplot2grid((2,3), (0,0), colspan=2, sharex=ax1)
-# ax2.plot(bathy['xFRF'], bathy['elevation'], ms=surveyMS, marker='.', linestyle='', color='k')
-# # ax2.plot(data['xFRF'], data['elevation_NAVD88_m'], ms=crawlerMS, marker='.', linestyle='', color='r')
-# _, _, _, m = ax2.hist2d(data['xFRF'], data['elevation_NAVD88_m'],bins=[np.arange(91, 310, 1), np.arange(-4, 2, 0.1) ],
-#            cmap='YlOrBr', norm=LogNorm())
-# cbar = plt.colorbar(mappable=m)
-# ax2.set_xlim([75, 350])
-# ax2.set_ylim([-4, 2])
-# ax3=plt.subplot2grid((2,3), (0,2))
-
 # interpolate the crawler and bathy lines to a common x step
 from scipy import interpolate
 xFRFbase = np.arange(50,310, 1)
-f = interpolate.interp1d(bathy['xFRF'], bathy['elevation'], kind='linear',
-                         bounds_error=False, fill_value=np.nan)
-surveyE = f(xFRFbase)
+# f = interpolate.interp1d(bathy['xFRF'], bathy['elevation'], kind='linear',
+#                          bounds_error=False, fill_value=np.nan)
+# surveyE = f(xFRFbase)
 plt.style.use('fivethirtyeight')
 plt.style.use('seaborn')
+
 ########################################
 # ax1 = plt.subplot2grid((3,1), (0,0))
-fig, axs = plt.subplots(4, 1, constrained_layout=True, figsize=[10,6])
-ax1, ax2, ax3, ax4 = axs[0], axs[1], axs[2], axs[3]
+
 # ax2.plot(bathy['xFRF'], bathy['yFRF'], ms=surveyMS, marker='.', linestyle='', color='k')
 # ax2 = plt.subplot2grid((3,1), (1,0), sharex=ax1)
 # ax1.plot(xFRFbase, surveyE, 'k', linewidth=0.25, label='Survey')
-ax1.plot(xFRFbase, np.ones_like(xFRFbase) * wl['predictedWL'].mean(), 'b', linestyle=':', label='Water Level')
+
+eleSave, surSave = [], []
+for tt, profNum in enumerate(np.unique(data['profileNumber'].dropna())):
+    if (profNum != -1) & (not np.isnan(profNum)):
+        idx = np.where(data['profileNumber'] == profNum)[0]
+        # if profNum < 410: # vechile is traveling seaward
+        #     ax2.plot(data['xFRF'].iloc[idx], data['yFRF'].iloc[idx], ms=crawlerMS, color=colors1[tt],
+        #              linewidth=1.5)
+        # else:
+        #     ax2.plot(data['xFRF'].iloc[idx], data['yFRF'].iloc[idx], ms=crawlerMS, color=colors2[tt%10], linewidth=1.5)
+        #
+        xFRFnew = np.arange(data['xFRF'].iloc[idx].min(), data['xFRF'].iloc[idx].max(), 1)
+        f = interpolate.interp1d(data['xFRF'].iloc[idx], data['elevation_NAVD88_m'].iloc[idx], kind='slinear',
+                                 bounds_error=False, fill_value=np.nan)
+        elev = f(xFRFbase)
+        eleSave.append(elev)
+        # surSave.append(medProfile) #surveyE)
+# make the median profile
+medProfile = np.nanmedian(np.array(eleSave), axis=0)
+
+####### make plot
+fig, axs = plt.subplots(4, 1, constrained_layout=True, figsize=[12,8])
+ax1, ax2, ax3, ax4 = axs[0], axs[1], axs[2], axs[3]
+ax1.plot(xFRFbase, np.ones_like(xFRFbase) * wl['predictedWL'].mean(), 'b', linestyle=':',linewidth=2, label='Water '
+                                                                                                            'Level')
 _, _, _, m = ax1.hist2d(data['xFRF'], data['elevation_NAVD88_m'],bins=[np.arange(91, 310, 1), np.arange(-4, 2, 0.1) ],
                         cmap='YlOrBr', norm=LogNorm())
 ax1.tick_params(labelbottom=False, bottom=False)
@@ -137,7 +155,6 @@ colors1 = plt.cm.winter_r(np.linspace(0, 1, int(len(data['profileNumber'].dropna
 colors2 = plt.cm.autumn_r(np.linspace(0, 1, int(len(data['profileNumber'].dropna().unique())/int(2))))
 ax3.legend()
 eleSave, surSave = [], []
-
 for tt, profNum in enumerate(np.unique(data['profileNumber'].dropna())):
     if (profNum != -1) & (not np.isnan(profNum)):
         idx = np.where(data['profileNumber'] == profNum)[0]
@@ -157,13 +174,15 @@ for tt, profNum in enumerate(np.unique(data['profileNumber'].dropna())):
         else:
             ax3.plot(xFRFbase, residualZ, label=f'interp_{profNum}', color=colors2[tt%10],
                      linewidth=1.5)
-            
-        eleSave.append(elev)
-        surSave.append(surveyE)
 
-# medProfile = np.median(np.array(elevSave), axis=0) ???
-ax4.plot(xFRFbase, np.nanstd(np.array(eleSave)[0:20:2], axis=0), label='north cluster', linewidth=1.5)
-ax4.plot(xFRFbase, np.nanstd(np.array(eleSave)[1:20:2], axis=0), label='south cluster', linewidth=1.5)
+        eleSave.append(elev)
+        # surSave.append(medProfile) #surveyE)
+
+
+ax4.plot(xFRFbase, 2*np.nanstd(np.array(eleSave)[0:20:2], axis=0), color='C1', label='north cluster', linewidth=1.5)
+ax4.plot(xFRFbase, 2*np.nanstd(np.array(eleSave)[1:20:2], axis=0), color='b', label='south cluster', linewidth=1.5)
+ax4.plot(xFRFbase, TVU_special, label='special-IHO', linewidth=1.5, linestyle='--')
+ax4.plot(xFRFbase, TVU_exclusive, label='exclusive-IHO', linewidth=1.5, linestyle='--')
 ax4.legend()
 # ax4.plot(xFRFbase, np.nanmean(np.array(eleSave) - np.array(surSave), axis=0), label='bias')
 
@@ -173,18 +192,26 @@ ax1.set_ylim([-4.5, 2])
 ax2.set_ylabel('elevation [m]')
 ax2.set_xlim([90, 325])
 ax3.set_xlim([90, 325])
-ax4.set_ylabel('$\sigma$ [m]')
+ax4.set_ylabel('$2\sigma$ [m]')
 ax4.set_xlim([90, 325])
 ax3.set_ylabel('residual [m]')
 ax4.set_xlabel('xFRF [m]')
 fig.axes[0].text(92.5, 1, 'a)')
 fig.axes[1].text(92.5, 415, 'b)')
-fig.axes[2].text(92.5, 0.2, 'c)')
-fig.axes[3].text(92.5, 0.07, 'd)')
-from testbedutils import sblib as sb
-stats = sb.statsBryant(surSave, eleSave)
+fig.axes[2].text(92.5, 0.12, 'c)')
+fig.axes[3].text(92.5, 0.2, 'd)')
+# from testbedutils import sblib as sb
+# stats = sb.statsBryant(surSave, eleSave)
 plt.savefig('plots/PaperInfoPlots/repeatability.eps', format='eps')
 ############################################################
+a_special = 0.25
+a_exclusive = 0.15
+b = 0.0075
+d = -medProfile
+TVU_special = np.sqrt(a_special**2 + (b*d)**2)
+TVU_exclusive = np.sqrt(a_exclusive**2 + (b*d)**2)
+
+
 
 
 #
