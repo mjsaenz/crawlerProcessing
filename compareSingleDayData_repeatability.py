@@ -68,11 +68,12 @@ data = crawlerTools.rotateTranslatePoints(data, offset)
 if data is None:
     print(f'skipping {fname} no good data\n--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=')
     raise EnvironmentError("no Good Crawler Data")
-fnameSave = 'data/repeatabilityTest2DataCrawler.pickle'
-pickle.dump(data, open(fnameSave, 'wb'))
-data = crawlerTools.transectSelection(data)
+# fnameSave = 'data/repeatabilityTest2DataCrawler.pickle'
+# pickle.dump(data, open(fnameSave, 'wb'))
+# data = crawlerTools.transectSelection(data)
 fnameSave = 'data/repeatabilityTest2DataCrawler_withNegative70.pickle'
-pickle.dump(data, open(fnameSave, 'wb'))
+# pickle.dump(data, open(fnameSave, 'wb'))
+data=pickle.load(open(fnameSave,'rb'))
 # do some logic here to see if files are exisiting of profile numbers are good
 # fnameLoad = 'data/RepeatabilityTest2Transects.xlsx'  # test 2
 # fnameLoad = 'data/iso3.xlsx' # tst 3
@@ -135,6 +136,12 @@ for tt, profNum in enumerate(np.unique(data['profileNumber'].dropna())):
         # surSave.append(medProfile) #surveyE)
 # make the median profile
 medProfile = np.nanmedian(np.array(eleSave), axis=0)
+a_special = 0.25  # constants from
+a_exclusive = 0.15
+b = 0.0075
+d = -medProfile
+TVU_special = np.sqrt(a_special**2 + (b*d)**2)
+TVU_exclusive = np.sqrt(a_exclusive**2 + (b*d)**2)
 
 ####### make plot
 fig, axs = plt.subplots(4, 1, constrained_layout=True, figsize=[12,8])
@@ -186,13 +193,13 @@ ax4.plot(xFRFbase, TVU_exclusive, label='exclusive-IHO', linewidth=1.5, linestyl
 ax4.legend()
 # ax4.plot(xFRFbase, np.nanmean(np.array(eleSave) - np.array(surSave), axis=0), label='bias')
 
-ax1.set_ylabel('yFRF [m]')
+ax1.set_ylabel('elevation [m]')
 ax1.set_xlim([90, 325])
 ax1.set_ylim([-4.5, 2])
-ax2.set_ylabel('elevation [m]')
+ax2.set_ylabel('yFRF [m]')
 ax2.set_xlim([90, 325])
 ax3.set_xlim([90, 325])
-ax4.set_ylabel('$2\sigma$ [m]')
+ax4.set_ylabel('uncertainty [m]')
 ax4.set_xlim([90, 325])
 ax3.set_ylabel('residual [m]')
 ax4.set_xlabel('xFRF [m]')
@@ -204,12 +211,6 @@ fig.axes[3].text(92.5, 0.2, 'd)')
 # stats = sb.statsBryant(surSave, eleSave)
 plt.savefig('plots/PaperInfoPlots/repeatability.eps', format='eps')
 ############################################################
-a_special = 0.25
-a_exclusive = 0.15
-b = 0.0075
-d = -medProfile
-TVU_special = np.sqrt(a_special**2 + (b*d)**2)
-TVU_exclusive = np.sqrt(a_exclusive**2 + (b*d)**2)
 
 
 
