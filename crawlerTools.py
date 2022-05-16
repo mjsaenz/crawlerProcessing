@@ -146,7 +146,10 @@ def transectSelection(data):
                 # plt.title("FRFy coords of selected transect")
                 # plt.show()
                 print("Mean FRFy coord of selected transect: ", meanY)
-                transectID = float(input("What profile number would you like to assign this transect? (float type): "))
+                transectIDstr = input("What profile number would you like to assign this transect? (float type, press ENTER for mean FRFy): ")
+                transectID = meanY
+                if transectIDstr != "":
+                    transectID = float(transectIDstr)
                 currTransect['profileNumber'] = currTransect['profileNumber'].replace([float("nan")], transectID)
 
                 print("Updating dataframe...")
